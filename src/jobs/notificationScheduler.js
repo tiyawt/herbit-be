@@ -11,7 +11,8 @@ import { daysBetween } from "../utils/date.js";
 
 const EcoenzymProjects = () =>
   mongoose.connection.collection("ecoenzymProjects");
-const Vouchers = () => mongoose.connection.collection("vouchers");
+const VoucherRedemptions = () =>
+  mongoose.connection.collection("voucherRedemptions");
 
 export function initNotificationSchedulers() {
   if (mongoose.connection.readyState !== 1) {
@@ -73,7 +74,7 @@ export function initNotificationSchedulers() {
         if (p.endDate && today > new Date(p.endDate)) continue;
 
         const d = daysBetween(new Date(p.startDate), today);
-        const milestones = [7,14,21,30,35,42,49,56,60,70,77,84,90];
+        const milestones = [7, 14, 21, 30, 35, 42, 49, 56, 60, 70, 77, 84, 90];
         if (!milestones.includes(d)) continue;
 
         try {
@@ -90,35 +91,70 @@ export function initNotificationSchedulers() {
   );
 
   // 3️⃣ Voucher — H-1 sebelum expired (09:00 WIB)
+  function tomorrowDateStrWIB() {
+    const fmt = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "Asia/Jakarta",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const nowWIB = fmt.format(new Date()); // hari ini WIB
+    const [y, m, d] = nowWIB.split("-").map(Number);
+    const todayWIB = new Date(Date.UTC(y, m - 1, d)); // 00:00 WIB dalam UTC
+    const tmrWIB = new Date(todayWIB.getTime() + 24 * 60 * 60 * 1000);
+    const y2 = tmrWIB.getUTCFullYear(),
+      m2 = String(tmrWIB.getUTCMonth() + 1).padStart(2, "0"),
+      d2 = String(tmrWIB.getUTCDate()).padStart(2, "0");
+    return `${y2}-${m2}-${d2}`;
+  }
+
   cron.schedule(
     "0 9 * * *",
     async () => {
-      console.log(
-        "🕒 Voucher cron:",
-        new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
+      const target = tomorrowDateStrWIB();
+      console.log("🕒 Voucher cron (WIB target):", target);
+
+      // Mencari redemption yang expiresAt jatuh di BESOK (WIB) pakai $expr
+      const cur = VoucherRedemptions().find(
+        {
+          $expr: {
+            $eq: [
+              {
+                $dateToString: {
+                  format: "%Y-%m-%d",
+                  date: "$expiresAt",
+                  timezone: "Asia/Jakarta",
+                },
+              },
+              target,
+            ],
+          },
+        },
+        { projection: { _id: 1, userId: 1, voucherId: 1, expiresAt: 1 } }
       );
 
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const start = new Date(tomorrow.setHours(0, 0, 0, 0));
-      const end = new Date(tomorrow.setHours(23, 59, 59, 999));
-
-      const vouchers = Vouchers().find(
-        { validUntil: { $gte: start, $lte: end } },
-        { projection: { _id: 1, userId: 1 } }
-      );
-
-      let count = 0;
-      for await (const v of vouchers) {
+      let created = 0,
+        seen = 0;
+      for await (const r of cur) {
+        seen++;
         try {
-          await pushVoucherExpiring(v.userId, v._id);
-          count++;
+          await pushVoucherExpiring(r.userId, r.voucherId || r._id);
+          created++;
         } catch (e) {
-          if (e.code !== 11000) console.error("❌ pushVoucher:", e);
+          if (e.code === 11000) {
+            console.log("⚠️ duplicate skipped", {
+              userId: r.userId?.toString?.(),
+              ref: (r.voucherId || r._id)?.toString?.(),
+            });
+          } else {
+            console.error("❌ pushVoucher:", e);
+          }
         }
       }
-
-      console.log(`✅ Voucher notifications checked (created=${count})`);
+    
+      console.log(
+        `✅ Voucher expiry notifications checked (created=${created})`
+      );
     },
     { timezone: "Asia/Jakarta" }
   );

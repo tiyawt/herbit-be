@@ -12,15 +12,15 @@ export async function pushDailyTaskNotif(userId, date = new Date()) {
   const dayBucket = date.toISOString().slice(0, 10); // YYYY-MM-DD
   try {
     return await notification.create({
-      userId: userId,
+      userId,
       type: "daily_task",
       title: TITLES.daily_task,
       message:
         "Ada 5 aksi kecil menunggu kamu. Yuk checklist biar pohonmu makin rimbun!",
-      dayBucket: dayBucket,
+      dayBucket,
     });
   } catch (e) {
-    if (e.code === 11000) return null; 
+    if (e.code === 11000) return null;
     throw e;
   }
 }
@@ -75,8 +75,7 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
     },
     77: {
       title: "Menjelang Panen",
-      message:
-        "Cairan makin jernih dan lembut aromanya. Panen sebentar lagi",
+      message: "Cairan makin jernih dan lembut aromanya. Panen sebentar lagi",
     },
     84: {
       title: "Minggu Terakhir",
@@ -90,11 +89,11 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
 
   const stage = stages[dayNumber];
   if (!stage) return null; // skip kalau bukan hari milestone
-  const dayBucket = new Date().toISOString().slice(0,10);
+  const dayBucket = new Date().toISOString().slice(0, 10);
 
   try {
     return await notification.create({
-      userId: userId,
+      userId,
       type: "ecoenzym_project",
       title: `Hari ke-${dayNumber} — ${stage.title}`,
       message: stage.message,
@@ -108,32 +107,14 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
 }
 
 export async function pushGameSortingInvite(userId, gameSessionId) {
-  const dayBucket = new Date().toISOString().slice(0,10);
+  const dayBucket = new Date().toISOString().slice(0, 10);
   try {
     return await notification.create({
-      userId: userId,
+      userId,
       type: "game_sorting",
       title: TITLES.game_sorting,
       message: "Pilah sampah dengan benar dan dapatkan poin",
       referenceId: gameSessionId,
-      dayBucket, 
-    });
-  } catch (e) {
-    if (e.code === 11000) return null;
-    throw e;
-  }
-}
-
-export async function pushVoucherExpiring(userId, voucherId) {
-  const dayBucket = new Date().toISOString().slice(0,10);
-  try {
-    return await notification.create({
-      userId: userId,
-      type: "voucher",
-      title: TITLES.voucher,
-      message:
-        "Voucher kamu akan expired besok 🎟️, segera tukarkan sebelum hilang!",
-      referenceId: voucherId,
       dayBucket,
     });
   } catch (e) {
@@ -142,12 +123,25 @@ export async function pushVoucherExpiring(userId, voucherId) {
   }
 }
 
+export async function pushVoucherExpiring(userId, voucherId) {
+  const dayBucket = new Date().toISOString().slice(0, 10);
+  return notification.create({
+    userId,
+    type: "voucher",
+    title: "Voucher Hampir Kadaluarsa",
+    message:
+      "Ada voucher kamu akan expired besok, segera tukarkan sebelum hilang!",
+    referenceId: voucherId,
+    dayBucket,
+  });
+}
+
 // Query helper
 export async function listUserNotifications(
   userId,
   { unreadOnly = false } = {}
 ) {
-  const q = { userId: userId };
+  const q = { userId };
   if (unreadOnly) q.isRead = false;
   return notification.find(q).sort({ createdAt: -1 });
 }
@@ -161,7 +155,7 @@ export async function markRead(notificationId) {
 }
 
 export async function markAllRead(userId, type) {
-  const q = { userId: userId };
+  const q = { userId };
   if (type) q.type = type;
   await notification.updateMany(q, { $set: { isRead: true } });
   return { ok: true };
