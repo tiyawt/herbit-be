@@ -20,7 +20,7 @@ export async function pushDailyTaskNotif(userId, date = new Date()) {
       dayBucket: dayBucket,
     });
   } catch (e) {
-    if (e.code === 11000) return null; // sudah ada untuk hari ini
+    if (e.code === 11000) return null; 
     throw e;
   }
 }

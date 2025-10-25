@@ -7,7 +7,7 @@ const router = express.Router();
 // GET /notifications?unread=1
 router.get("/", async (req, res, next) => {
   try {
-    const userId = req.user?._id || req.query.userId; // sesuaikan auth-mu
+    const userId = req.user?._id || req.query.userId;
     const unreadOnly = req.query.unread === "1";
     const data = await listUserNotifications(userId, { unreadOnly });
     res.json(data);
@@ -24,7 +24,7 @@ router.patch("/:id/read", async (req, res, next) => {
 router.patch("/read-all", async (req, res, next) => {
   try {
     const userId = req.user?._id || req.body.userId;
-    const { type } = req.body; // optional
+    const { type } = req.body; 
     const data = await markAllRead(userId, type);
     res.json(data);
   } catch (e) { next(e); }

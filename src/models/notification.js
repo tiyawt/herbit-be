@@ -21,7 +21,7 @@ const notificationSchema = new mongoose.Schema(
     message: { type: String, required: true },
     referenceId: { type: mongoose.Schema.Types.ObjectId, default: null }, // ID sumber (task/project/game/voucher)
     isRead: { type: Boolean, default: false },
-    scheduledFor: { type: Date, default: null }, // kalau perlu jadwalkan tampilnya
+    scheduledFor: { type: Date, default: null },
     // bucket_harian buat cegah duplikat notifikasi harian (daily_task)
     dayBucket: { type: String, default: null, index: true },
   },

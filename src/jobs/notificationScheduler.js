@@ -19,7 +19,7 @@ export function initNotificationSchedulers() {
     return;
   }
 
-  // 1️⃣ Daily Task — tiap hari 08:00 WIB
+  // 1️⃣ Daily Task — tiap hari 06:00 WIB
   cron.schedule(
     "0 6 * * *",
     async () => {
