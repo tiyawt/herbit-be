@@ -91,6 +91,7 @@ export async function listVouchers({
     filter.$and = [
       { $or: [{ validFrom: null }, { validFrom: { $lte: now } }] },
       { $or: [{ validUntil: null }, { validUntil: { $gte: now } }] },
+      { $or: [{ stock: null }, { stock: { $gt: 0 } }] },
     ];
   } else if (status === "inactive") {
     filter.isActive = false;
@@ -263,7 +264,14 @@ export async function getVoucherSummary(userId) {
       totalPoints: 1,
       photoUrl: 1,
     }),
-    Voucher.find({ isActive: true })
+    Voucher.find({
+      isActive: true,
+      $or: [{ stock: null }, { stock: { $gt: 0 } }],
+      $and: [
+        { $or: [{ validFrom: null }, { validFrom: { $lte: new Date() } }] },
+        { $or: [{ validUntil: null }, { validUntil: { $gte: new Date() } }] },
+      ],
+    })
       .sort({ pointsRequired: 1 })
       .limit(10),
     VoucherRedemption.find({ userId })
