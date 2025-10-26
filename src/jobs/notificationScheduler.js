@@ -7,12 +7,15 @@ import {
   pushEcoenzymProgressNotif,
   pushVoucherExpiring,
 } from "../services/notificationService.js";
-import { daysBetween } from "../utils/date.js";
+import { daysBetween, todayBucketWIB } from "../utils/date.js";
+import { pushGameSortingInvite } from "../services/notificationService.js";
+
 
 const EcoenzymProjects = () =>
   mongoose.connection.collection("ecoenzymProjects");
 const VoucherRedemptions = () =>
   mongoose.connection.collection("voucherRedemptions");
+const GameSortings = () => mongoose.connection.collection("gameSortings");
 
 export function initNotificationSchedulers() {
   if (mongoose.connection.readyState !== 1) {
@@ -151,9 +154,54 @@ export function initNotificationSchedulers() {
           }
         }
       }
-    
+
       console.log(
         `✅ Voucher expiry notifications checked (created=${created})`
+      );
+    },
+    { timezone: "Asia/Jakarta" }
+  );
+
+  console.log("⏰ Notification schedulers initialized (Asia/Jakarta).");
+
+  // Game Sorting — tiap hari 10:00 WIB
+  cron.schedule(
+    "0 10 * * *",
+    async () => {
+      const bucket = todayBucketWIB();
+      console.log("🕒 GameSorting notif cron (bucket WIB):", bucket);
+
+      const completers = await GameSortings().distinct("userId", {
+        dayBucket: bucket,
+        isCompleted: true,
+      });
+      const completedSet = new Set(
+        completers.map((x) => x.toString?.() ?? String(x))
+      );
+
+      // Loop semua user, kirim notif ke yang BELUM completed hari ini
+      const users = await User.find({}, "_id");
+      let created = 0,
+        skipped = 0;
+
+      for (const u of users) {
+        const uid = u._id.toString();
+        if (completedSet.has(uid)) {
+          skipped++;
+          continue;
+        }
+
+        try {
+          const res = await pushGameSortingInvite(u._id, new Date());
+          if (res) created++;
+        } catch (e) {
+          if (e.code === 11000) skipped++;
+          else console.error("❌ pushGameSortingInvite:", e);
+        }
+      }
+
+      console.log(
+        `✅ GameSorting invites done (created=${created}, skipped=${skipped})`
       );
     },
     { timezone: "Asia/Jakarta" }
