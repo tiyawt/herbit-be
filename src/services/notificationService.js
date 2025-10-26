@@ -106,15 +106,14 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
   }
 }
 
-export async function pushGameSortingInvite(userId, gameSessionId) {
-  const dayBucket = new Date().toISOString().slice(0, 10);
+export async function pushGameSortingInvite(userId, date = new Date()) {
+  const dayBucket = todayBucketWIB(date);
   try {
     return await notification.create({
       userId,
       type: "game_sorting",
       title: TITLES.game_sorting,
-      message: "Pilah sampah dengan benar dan dapatkan poin",
-      referenceId: gameSessionId,
+      message: "Pilah sampah dengan benar dan dapatkan poin 🔥 Klaim hadiahmu!",
       dayBucket,
     });
   } catch (e) {

@@ -13,6 +13,8 @@ const EcoenzymProjects = () =>
   mongoose.connection.collection("ecoenzymProjects");
 const VoucherRedemptions = () =>
   mongoose.connection.collection("voucherRedemptions");
+const GameSortingRewards = () =>
+  mongoose.connection.collection("gameSortingRewards");
 
 export function initNotificationSchedulers() {
   if (mongoose.connection.readyState !== 1) {
@@ -89,6 +91,66 @@ export function initNotificationSchedulers() {
     },
     { timezone: "Asia/Jakarta" }
   );
+  
+  // Game Sorting Invite
+  cron.schedule(
+    "0 12 * * *",
+    async () => {
+      const target = todayStrWIB();
+      console.log("🕒 GameSorting cron (WIB day):", target);
+
+      // Ambil user yg SUDAH klaim poin game HARI INI (WIB)
+      const claimedUserIds = await GameSortingRewards().distinct("user_id", {
+        $expr: {
+          $eq: [
+            {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$claimed_at",
+                timezone: "Asia/Jakarta",
+              },
+            },
+            target,
+          ],
+        },
+      });
+
+      // Kirim notif ke semua user yang BELUM klaim hari ini
+      // (termasuk yang belum main sama sekali — ini kan invite)
+      const users = await User.find({}, "_id");
+      const claimedSet = new Set(
+        claimedUserIds.map((id) => id.toString?.() ?? String(id))
+      );
+
+      let created = 0,
+        skipped = 0;
+      for (const u of users) {
+        const uid = u._id.toString();
+        if (claimedSet.has(uid)) {
+          skipped++;
+          continue; // sudah klaim -> jangan notif
+        }
+        try {
+          const res = await pushGameSortingInvite(u._id, new Date());
+          if (res) created++;
+        } catch (e) {
+          if (e.code === 11000) {
+            // duplikat harian (index) -> aman
+            skipped++;
+          } else {
+            console.error("❌ pushGameSortingInvite:", e);
+          }
+        }
+      }
+
+      console.log(
+        `✅ GameSorting notifications (created=${created}, skipped=${skipped})`
+      );
+    },
+    { timezone: "Asia/Jakarta" }
+  );
+
+  console.log("⏰ Notification schedulers initialized (Asia/Jakarta).");
 
   // 3️⃣ Voucher — H-1 sebelum expired (09:00 WIB)
   function tomorrowDateStrWIB() {
@@ -151,7 +213,7 @@ export function initNotificationSchedulers() {
           }
         }
       }
-    
+
       console.log(
         `✅ Voucher expiry notifications checked (created=${created})`
       );

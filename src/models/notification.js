@@ -52,4 +52,16 @@ notificationSchema.index(
   }
 );
 
+// game
+notificationSchema.index(
+  { userId: 1, type: 1, dayBucket: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      dayBucket: { $type: "string" },
+      type: "game_sorting",
+    },
+  }
+);
+
 export default mongoose.model("Notification", notificationSchema);
