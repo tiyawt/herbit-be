@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { ensureAuth } from "../middlewares/auth.js"; // sesuaikan kalau nama middleware-nya beda
+import { authRequired } from "../middleware/authMiddleware.js";
 import {
   startGameSession,
   completeGameSession,
@@ -9,7 +9,7 @@ import {
 const router = Router();
 
 // Mulai game — dipanggil saat user klik "Play"
-router.post("/start", ensureAuth, async (req, res, next) => {
+router.post("/start", authRequired, async (req, res, next) => {
   try {
     const session = await startGameSession(req.user._id);
     res.json({ ok: true, session });
@@ -19,7 +19,7 @@ router.post("/start", ensureAuth, async (req, res, next) => {
 });
 
 // Selesai game — dipanggil ketika semua sampah udah habis
-router.post("/complete/:id", ensureAuth, async (req, res, next) => {
+router.post("/complete/:id", authRequired, async (req, res, next) => {
   try {
     const session = await completeGameSession(req.params.id, req.user._id);
     res.json({ ok: true, session });
@@ -29,7 +29,7 @@ router.post("/complete/:id", ensureAuth, async (req, res, next) => {
 });
 
 // Klaim poin harian — cuma bisa sekali per hari
-router.post("/claim", ensureAuth, async (req, res, next) => {
+router.post("/claim", authRequired, async (req, res, next) => {
   try {
     const { points } = req.body;
     const reward = await claimDailyReward(req.user._id, { points });
