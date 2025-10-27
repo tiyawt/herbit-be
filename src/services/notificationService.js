@@ -2,7 +2,6 @@
 import notification from "../models/notification.js";
 import { todayBucketWIB } from "../utils/date.js";
 
-
 const TITLES = {
   daily_task: "Daily Challenge Hari Ini",
   ecoenzym_project: "Pengingat Progres Ecoenzym",
@@ -69,7 +68,8 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
     },
     60: {
       title: "Upload foto progress bulan keduamu!",
-      message: "Hampir tak ada gas keluar. Warna jernih, endapan halus. Saatnya upload foto progres bulan kedua agar fermentasimu tercatat!",
+      message:
+        "Hampir tak ada gas keluar. Warna jernih, endapan halus. Saatnya upload foto progres bulan kedua agar fermentasimu tercatat!",
     },
     70: {
       title: "Masa Tenang",
@@ -85,7 +85,8 @@ export async function pushEcoenzymProgressNotif(userId, projectId, dayNumber) {
     },
     90: {
       title: "Panen Ecoenzym!",
-      message: "Fermentasi selesai 🎉 Cairan coklat keemasan siap digunakan. Kamu bisa claim pointmu sekarang!",
+      message:
+        "Fermentasi selesai 🎉 Cairan coklat keemasan siap digunakan. Kamu bisa claim pointmu sekarang!",
     },
   };
 
@@ -115,12 +116,8 @@ export async function pushGameSortingInvite(userId, date = new Date()) {
       userId,
       type: "game_sorting",
       title: TITLES.game_sorting,
-<<<<<<< HEAD
       message: "Pilah sampah dengan benar dan dapatkan poin",
       referenceId: null,
-=======
-      message: "Pilah sampah dengan benar dan dapatkan poin 🔥 Klaim hadiahmu!",
->>>>>>> 5416ffdbb0a969bf0c3abc3daa0403e3d9fb6565
       dayBucket,
     });
   } catch (e) {
