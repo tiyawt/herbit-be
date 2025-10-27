@@ -25,7 +25,7 @@ export function initNotificationSchedulers() {
 
   // 1️⃣ Daily Task — tiap hari 06:00 WIB
   cron.schedule(
-    "0 6 * * *",
+    "35 8 * * *",
     async () => {
       console.log(
         "🕒 DailyTask cron:",
@@ -50,9 +50,9 @@ export function initNotificationSchedulers() {
 
   // 2️⃣ Ecoenzym — tiap hari 08:00 WIB
   cron.schedule(
-    "0 8 * * *",
+    "47 8 * * *",
     async () => {
-      console.log(
+      console.log( 
         "🕒 Ecoenzym cron:",
         new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })
       );
@@ -93,7 +93,7 @@ export function initNotificationSchedulers() {
     { timezone: "Asia/Jakarta" }
   );
 
-  // 3️⃣ Voucher — H-1 sebelum expired (09:00 WIB)
+  
   function tomorrowDateStrWIB() {
     const fmt = new Intl.DateTimeFormat("sv-SE", {
       timeZone: "Asia/Jakarta",
@@ -111,8 +111,9 @@ export function initNotificationSchedulers() {
     return `${y2}-${m2}-${d2}`;
   }
 
+  // 3️⃣ Voucher — H-1 sebelum expired (09:00 WIB)
   cron.schedule(
-    "0 9 * * *",
+    "48 8 * * *",
     async () => {
       const target = tomorrowDateStrWIB();
       console.log("🕒 Voucher cron (WIB target):", target);
@@ -166,7 +167,7 @@ export function initNotificationSchedulers() {
 
   // Game Sorting — tiap hari 10:00 WIB
   cron.schedule(
-    "0 10 * * *",
+    "38 8 * * *",
     async () => {
       const bucket = todayBucketWIB();
       console.log("🕒 GameSorting notif cron (bucket WIB):", bucket);
@@ -179,7 +180,6 @@ export function initNotificationSchedulers() {
         completers.map((x) => x.toString?.() ?? String(x))
       );
 
-      // Loop semua user, kirim notif ke yang BELUM completed hari ini
       const users = await User.find({}, "_id");
       let created = 0,
         skipped = 0;
