@@ -7,6 +7,7 @@ import routes from "./routes/routes.js";
 import passport from "./config/passport.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
 import gameRoutes from "./routes/gameRoutes.js";
+import dailyRoutes from "./routes/dailyRoutes.js";
 
 
 const app = express();
@@ -30,5 +31,6 @@ app.get("/", (req, res) => {
 app.use("/api", routes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/game", gameRoutes);
+app.use("/api/daily", dailyRoutes)
 
 export default app;
