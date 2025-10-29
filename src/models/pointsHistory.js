@@ -13,7 +13,7 @@ const pointsHistorySchema = new Schema(
     pointsAmount: { type: Number, required: true },
     source: {
       type: String,
-      enum: ["reward", "voucher", "ecoenzym", "game"],
+      enum: ["reward", "voucher", "ecoenzym", "game", "tree"],
       required: true,
     },
     referenceId: { type: String, default: null, trim: true },
