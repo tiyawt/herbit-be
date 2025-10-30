@@ -1,9 +1,11 @@
 import {
+  createVoucher,
+  deleteVoucher,
   getVoucher,
   getVoucherBySlug,
-  getVoucherSummary,
   getUserRedemptions,
   listVouchers,
+  updateVoucher,
   redeemVoucher,
 } from "../services/voucherService.js";
 import { ok, fail } from "../utils/response.js";
@@ -17,6 +19,8 @@ const errorMessages = {
   VOUCHER_OUT_OF_STOCK: "Voucher sudah habis",
   INSUFFICIENT_POINTS: "Poin tidak mencukupi untuk menukar voucher",
   USER_NOT_FOUND: "Pengguna tidak ditemukan",
+  VOUCHER_SLUG_EXISTS: "Slug voucher sudah digunakan",
+  VOUCHER_SLUG_REQUIRED: "Slug voucher wajib diisi",
 };
 
 function handleVoucherError(res, error, fallbackCode, status = 400) {
@@ -43,13 +47,31 @@ async function resolveTargetUserId({ username, fallbackUserId }) {
   return user._id.toString();
 }
 
+export async function createVoucherHandler(req, res) {
+  try {
+    const voucher = await createVoucher(req.body ?? {});
+    return ok(res, voucher, "Voucher berhasil dibuat", 201);
+  } catch (error) {
+    const status =
+      error.message === "VOUCHER_SLUG_EXISTS"
+        ? 409
+        : error.message === "VOUCHER_SLUG_REQUIRED"
+        ? 400
+        : error.status ?? 400;
+    return handleVoucherError(res, error, "VOUCHER_CREATE_ERROR", status);
+  }
+}
+
 export async function listVoucherHandler(req, res) {
   try {
     const { status, category, search, limit, page, username } = req.query;
-    const targetUserId = await resolveTargetUserId({
-      username,
-      fallbackUserId: req.user?.id ?? null,
-    });
+    let targetUserId = null;
+    if (username || req.user?.id) {
+      targetUserId = await resolveTargetUserId({
+        username,
+        fallbackUserId: req.user?.id ?? null,
+      });
+    }
 
     const result = await listVouchers({
       userId: targetUserId,
@@ -58,10 +80,39 @@ export async function listVoucherHandler(req, res) {
       search,
       limit,
       page,
+      includeInactive: !status,
     });
     return ok(res, result);
   } catch (error) {
     return handleVoucherError(res, error, "VOUCHER_LIST_ERROR");
+  }
+}
+
+export async function updateVoucherHandler(req, res) {
+  try {
+    const { voucherId } = req.params;
+    const voucher = await updateVoucher(voucherId, req.body ?? {});
+    return ok(res, voucher, "Voucher berhasil diperbarui");
+  } catch (error) {
+    const status =
+      error.message === "VOUCHER_SLUG_EXISTS"
+        ? 409
+        : error.message === "VOUCHER_NOT_FOUND"
+        ? 404
+        : error.status ?? 400;
+    return handleVoucherError(res, error, "VOUCHER_UPDATE_ERROR", status);
+  }
+}
+
+export async function deleteVoucherHandler(req, res) {
+  try {
+    const { voucherId } = req.params;
+    const result = await deleteVoucher(voucherId);
+    return ok(res, result, "Voucher berhasil dihapus");
+  } catch (error) {
+    const status =
+      error.message === "VOUCHER_NOT_FOUND" ? 404 : error.status ?? 400;
+    return handleVoucherError(res, error, "VOUCHER_DELETE_ERROR", status);
   }
 }
 
@@ -70,10 +121,13 @@ export async function getVoucherDetailHandler(req, res) {
     const { voucherId } = req.params;
     const { by = "id", username } = req.query;
 
-    const targetUserId = await resolveTargetUserId({
-      username,
-      fallbackUserId: req.user?.id ?? null,
-    });
+    let targetUserId = null;
+    if (username || req.user?.id) {
+      targetUserId = await resolveTargetUserId({
+        username,
+        fallbackUserId: req.user?.id ?? null,
+      });
+    }
 
     const voucher =
       by === "slug"
@@ -129,21 +183,5 @@ export async function getVoucherHistoryHandler(req, res) {
     return ok(res, history);
   } catch (error) {
     return handleVoucherError(res, error, "VOUCHER_HISTORY_ERROR");
-  }
-}
-
-export async function getVoucherSummaryHandler(req, res) {
-  try {
-    const { username } = req.query;
-    const targetUserId = await resolveTargetUserId({
-      username,
-      fallbackUserId: req.user?.id ?? null,
-    });
-    const summary = await getVoucherSummary(targetUserId);
-    return ok(res, summary);
-  } catch (error) {
-    const status =
-      error.message === "USER_NOT_FOUND" ? 404 : error.status ?? 400;
-    return handleVoucherError(res, error, "VOUCHER_SUMMARY_ERROR", status);
   }
 }
