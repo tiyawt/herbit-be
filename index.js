@@ -16,7 +16,7 @@ try {
     console.log(`✅ Server running on http://localhost:${PORT}`);
   
     // Jalankan setiap jam 00:00
-    cron.schedule("* * * * *", async () => {
+    cron.schedule("0 0 * * * *", async () => {
       console.log("⏰ Mengecek daun kuning jam 00:00...");
       await updateYellowLeavesForInactiveUsers();
     });
