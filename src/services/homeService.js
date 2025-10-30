@@ -5,7 +5,6 @@ import EcoenzymUploadProgress from "../models/ecoenzymUploadProgress.js";
 import User from "../models/user.js";
 import { listVouchers } from "./voucherService.js";
 
-const DEFAULT_VOUCHER_IMAGE = "/sample-voucher.jpg";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function seededRandom(seed) {
@@ -146,23 +145,16 @@ async function buildEcoenzymSummary(userId) {
   };
 }
 
-async function buildVoucherBanners(userId) {
+async function buildVoucherBanners() {
   try {
     const response = await listVouchers({
-      userId: userId.toString(),
       status: "active",
-      limit: 3,
     });
     const items = response?.items ?? [];
     return items.map((item) => ({
       id: item.id,
       name: item.name,
-      image:
-        item.banner ??
-        item.bannerUrl ??
-        item.image ??
-        item.imageUrl ??
-        DEFAULT_VOUCHER_IMAGE,
+      image: item.bannerUrl ?? item.imageUrl ?? null,
       href: item.landingUrl ?? "#",
     }));
   } catch {
@@ -192,12 +184,11 @@ export async function getHomeSummary(username) {
   const [habitSummary, ecoenzym, rewardsBanners] = await Promise.all([
     buildHabitsToday(userId),
     buildEcoenzymSummary(userId),
-    buildVoucherBanners(userId),
+    buildVoucherBanners(),
   ]);
 
   return {
     user: {
-      id: userId.toString(),
       name: user.name ?? user.username ?? user.email,
       username: user.username ?? null,
       photoUrl: user.photoUrl ?? null,
