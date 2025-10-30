@@ -4,6 +4,22 @@ import Voucher from "../models/voucher.js";
 import VoucherRedemption from "../models/voucherRedemption.js";
 import User from "../models/user.js";
 
+function normalizeStringArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => (typeof entry === "string" ? entry.trim() : null))
+      .filter((entry) => entry);
+  }
+  if (typeof value === "string") {
+    return value
+      .split("\n")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry);
+  }
+  return [];
+}
+
 function mapVoucher(voucher, user) {
   if (!voucher) return null;
   const pointsRequired = voucher.pointsRequired ?? 0;
@@ -23,8 +39,6 @@ function mapVoucher(voucher, user) {
     partnerName: voucher.partnerName,
     imageUrl: voucher.imageUrl,
     bannerUrl: voucher.bannerUrl,
-    image: voucher.imageUrl,
-    banner: voucher.bannerUrl,
     discountValue: voucher.discountValue,
     landingUrl: voucher.landingUrl,
     pointsRequired,
@@ -45,6 +59,102 @@ function mapVoucher(voucher, user) {
     createdAt: voucher.createdAt,
     updatedAt: voucher.updatedAt,
   };
+}
+
+export async function createVoucher(payload) {
+  const { slug } = payload || {};
+  if (!slug) {
+    throw new Error("VOUCHER_SLUG_REQUIRED");
+  }
+
+  const slugExists = await Voucher.exists({ slug });
+  if (slugExists) {
+    throw new Error("VOUCHER_SLUG_EXISTS");
+  }
+
+  const doc = new Voucher({
+    slug: slug.trim(),
+    name: payload.name,
+    description: payload.description,
+    category: payload.category,
+    pointsRequired: payload.pointsRequired,
+    stock: payload.stock,
+    redeemedCount: payload.redeemedCount,
+    isActive: payload.isActive,
+    validFrom: payload.validFrom,
+    validUntil: payload.validUntil,
+    imageUrl: payload.imageUrl,
+    bannerUrl: payload.bannerUrl,
+    partnerName: payload.partnerName,
+    discountValue: payload.discountValue,
+    landingUrl: payload.landingUrl,
+    terms: normalizeStringArray(payload.terms),
+    instructions: normalizeStringArray(payload.instructions),
+    metadata: payload.metadata ?? null,
+  });
+
+  const created = await doc.save();
+  return mapVoucher(created, null);
+}
+
+export async function updateVoucher(voucherId, updates = {}) {
+  const voucher = await Voucher.findById(voucherId);
+  if (!voucher) {
+    throw new Error("VOUCHER_NOT_FOUND");
+  }
+
+  if (updates.slug && updates.slug !== voucher.slug) {
+    const slugExists = await Voucher.exists({
+      slug: updates.slug,
+      _id: { $ne: voucherId },
+    });
+    if (slugExists) {
+      throw new Error("VOUCHER_SLUG_EXISTS");
+    }
+    voucher.slug = updates.slug.trim();
+  }
+
+  const fields = [
+    "name",
+    "description",
+    "category",
+    "pointsRequired",
+    "stock",
+    "redeemedCount",
+    "isActive",
+    "validFrom",
+    "validUntil",
+    "imageUrl",
+    "bannerUrl",
+    "partnerName",
+    "discountValue",
+    "landingUrl",
+    "metadata",
+  ];
+
+  fields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(updates, field)) {
+      voucher[field] = updates[field];
+    }
+  });
+
+  if (Object.prototype.hasOwnProperty.call(updates, "terms")) {
+    voucher.terms = normalizeStringArray(updates.terms);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "instructions")) {
+    voucher.instructions = normalizeStringArray(updates.instructions);
+  }
+
+  const saved = await voucher.save();
+  return mapVoucher(saved, null);
+}
+
+export async function deleteVoucher(voucherId) {
+  const removed = await Voucher.findByIdAndDelete(voucherId);
+  if (!removed) {
+    throw new Error("VOUCHER_NOT_FOUND");
+  }
+  return { id: removed._id?.toString() ?? null };
 }
 
 function mapRedemption(redemption, voucher) {
@@ -77,15 +187,18 @@ function mapRedemption(redemption, voucher) {
 
 export async function listVouchers({
   userId = null,
-  status = "active",
+  status = null,
   category = null,
   search = null,
   limit = 20,
   page = 1,
+  includeInactive = false,
 } = {}) {
   const filter = {};
 
-  if (status === "active") {
+  if (!includeInactive && status === null) {
+    filter.isActive = true;
+  } else if (status === "active") {
     filter.isActive = true;
     const now = new Date();
     filter.$and = [
@@ -253,49 +366,5 @@ export async function getUserRedemptions(userId, { limit = 20, page = 1 } = {}) 
     items: items.map((redemption) =>
       mapRedemption(redemption, redemption.voucherId)
     ),
-  };
-}
-
-export async function getVoucherSummary(userId) {
-  const [user, vouchers, redemptions] = await Promise.all([
-    User.findById(userId).select({
-      username: 1,
-      email: 1,
-      totalPoints: 1,
-      photoUrl: 1,
-    }),
-    Voucher.find({
-      isActive: true,
-      $or: [{ stock: null }, { stock: { $gt: 0 } }],
-      $and: [
-        { $or: [{ validFrom: null }, { validFrom: { $lte: new Date() } }] },
-        { $or: [{ validUntil: null }, { validUntil: { $gte: new Date() } }] },
-      ],
-    })
-      .sort({ pointsRequired: 1 })
-      .limit(10),
-    VoucherRedemption.find({ userId })
-      .sort({ redeemedAt: -1 })
-      .limit(10)
-      .populate("voucherId"),
-  ]);
-
-  if (!user) throw new Error("USER_NOT_FOUND");
-
-  const mappedVouchers = vouchers.map((voucher) => mapVoucher(voucher, user));
-  const mappedHistory = redemptions.map((redemption) =>
-    mapRedemption(redemption, redemption.voucherId)
-  );
-
-  return {
-    user: {
-      id: user._id?.toString() ?? null,
-      username: user.username ?? user.email,
-      name: user.username || user.email,
-      photoUrl: user.photoUrl,
-      totalPoints: user.totalPoints ?? 0,
-    },
-    available: mappedVouchers,
-    history: mappedHistory,
   };
 }
