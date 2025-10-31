@@ -1,73 +1,11 @@
 import DailyTaskChecklist from "../models/dailyTaskChecklist.js";
 import DailyTask from "../models/dailyTask.js";
-import EcoenzymUploadProgress from "../models/ecoenzymUploadProgress.js";
 import EcoenzymProject from "../models/ecoenzymProject.js";
 import GameSortingReward from "../models/gameSortingReward.js";
 import TreeFruit from "../models/treeFruit.js";
 import User from "../models/user.js";
 import { listVouchers, getUserRedemptions } from "./voucherService.js";
 import { listRewards, getUserMilestoneClaims } from "./rewardService.js";
-
-function startOfWeek(current = new Date()) {
-  const date = new Date(current);
-  date.setHours(0, 0, 0, 0);
-  const day = date.getDay(); // Sunday = 0, Monday = 1
-  const diff = day === 0 ? 6 : day - 1; // how many days since Monday
-  date.setDate(date.getDate() - diff);
-  return date;
-}
-
-function startOfMonth(current = new Date()) {
-  const date = new Date(current.getFullYear(), current.getMonth(), 1);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function formatDateLabel(date) {
-  if (!date) return null;
-  const formatter = new Intl.DateTimeFormat("id-ID", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  const parts = formatter.formatToParts(date);
-  const map = {};
-  for (const part of parts) {
-    map[part.type] = part.value;
-  }
-  const day = map.day ?? "";
-  const month = map.month ?? "";
-  const year = map.year ?? "";
-  const hour = (map.hour ?? "00").padStart(2, "0");
-  const minute = (map.minute ?? "00").padStart(2, "0");
-  const second = (map.second ?? "00").padStart(2, "0");
-  return `${day} ${month} ${year} ${hour}.${minute}.${second}`;
-}
-
-function resolveActivityPeriods(timestamp) {
-  if (!timestamp) return ["all"];
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) return ["all"];
-  const now = new Date();
-  const weekStart = startOfWeek(now);
-  const monthStart = startOfMonth(now);
-  const periods = ["all"];
-  if (date >= weekStart && date <= now) {
-    periods.push("week");
-  }
-  if (
-    date >= monthStart &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear()
-  ) {
-    periods.push("month");
-  }
-  return periods;
-}
 
 function computeStreakDays(completedTimestamps = []) {
   if (!completedTimestamps.length) {
@@ -105,95 +43,85 @@ function computeStreakDays(completedTimestamps = []) {
 }
 
 function mapLeafActivity(checklist) {
-  const task = checklist.dailyTaskId;
-  const timestamp =
-    checklist.completedAt ?? checklist.updatedAt ?? checklist.createdAt;
-  return {
-    id: checklist._id?.toString() ?? null,
-    type: "leaf",
-    metricLabel: "+1 daun hijau",
-    title: task?.title ?? "Tugas harian selesai",
-    description: task?.description ?? null,
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
-  };
+  const activity = { type: "leaf" };
+  if (checklist.completedAt) {
+    activity.time = new Date(checklist.completedAt);
+  }
+  return activity;
 }
 
 function mapVoucherActivity(redemption) {
-  const voucher =
-    redemption.voucherId && typeof redemption.voucherId === "object"
-      ? redemption.voucherId
-      : null;
-  const timestamp = redemption.redeemedAt ?? redemption.createdAt;
-  return {
-    id: redemption._id?.toString() ?? null,
+  const activity = {
     type: "redeem",
-    points: -(redemption.pointsDeducted ?? 0),
-    title: voucher?.name ?? "Voucher ditukar",
-    description: "Voucher berhasil ditukar",
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
+    points: -redemption.pointsDeducted,
   };
+  if (redemption.redeemedAt) {
+    activity.time = new Date(redemption.redeemedAt);
+  }
+  return activity;
 }
 
-function mapEcoenzymActivity(upload) {
-  const timestamp = upload.uploadedDate ?? upload.createdAt;
-  return {
-    id: upload._id?.toString() ?? null,
-    type: "gain",
-    metricLabel: `+${upload.prePointsEarned ?? 0} poin pra`,
-    title: "Progress Ecoenzym diunggah",
-    description: "Unggahan progress ecoenzym berhasil diverifikasi",
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
-    prePoints: upload.prePointsEarned ?? 0,
-  };
-}
-
-function mapEcoenzymProjectActivity(project) {
-  const timestamp = project.updatedAt ?? project.endDate ?? project.createdAt;
+function mapCompletedEcoenzymProjectActivity(project) {
   const points = project.points ?? 0;
-  return {
-    id: project._id?.toString() ?? null,
+  const activity = {
     type: "gain",
-    metricLabel: `+${points} poin ecoenzym`,
     points,
-    title: "Ecoenzym Project",
-    description: `Reward proyek ecoenzym (${project.status ?? "unknown"})`,
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
+    status: project.status ?? "completed",
   };
+  const timeSource =
+    project.claimedAt ??
+    project.endDate ??
+    project.updatedAt ??
+    project.createdAt ??
+    null;
+  if (timeSource) {
+    activity.time = new Date(timeSource);
+  }
+  activity.projectId = project._id?.toString() ?? null;
+  return activity;
+}
+
+function mapOngoingEcoenzymProjectActivity(project) {
+  const points = project.prePointsEarned ?? 0;
+  const activity = {
+    type: "prepoint",
+    points,
+    status: project.status ?? "ongoing",
+  };
+  const timeSource = project.updatedAt ?? project.createdAt ?? null;
+  if (timeSource) {
+    activity.time = new Date(timeSource);
+  }
+  activity.projectId = project._id?.toString() ?? null;
+  return activity;
 }
 
 function mapGameSortingActivity(reward) {
-  const timestamp = reward.claimedAt ?? reward.createdAt;
-  return {
-    id: reward._id?.toString() ?? null,
-    type: "gain",
-    metricLabel: `+${reward.pointAwarded ?? 0} poin game`,
-    points: reward.pointAwarded ?? 0,
-    title: "Poin Game Sorting",
-    description: `Reward harian game sorting (${
-      reward.dayBucket ?? "unknown"
-    })`,
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
+  const points = reward.pointAwarded ?? 0;
+  const activity = {
+    type: "game",
+    points,
+    dayBucket: reward.dayBucket ?? null,
   };
+  if (reward.claimedAt) {
+    activity.time = new Date(reward.claimedAt);
+  }
+  if (Number.isFinite(points)) {
+    activity.pointsLabel = `+${points} point`;
+  }
+  return activity;
 }
 
 function mapTreeFruitActivity(fruit) {
-  const timestamp = fruit.claimedAt ?? fruit.updatedAt ?? fruit.createdAt;
   const points = fruit.pointsAwarded ?? 0;
-  return {
-    id: fruit._id?.toString() ?? null,
-    type: "gain",
-    metricLabel: `+${points} poin panen`,
+  const activity = {
+    type: "fruit",
     points,
-    title: "Panen Tree Tracker",
-    description: "Poin dari buah pohon berhasil diklaim",
-    time: timestamp,
-    timeLabel: formatDateLabel(timestamp),
   };
+  if (fruit.claimedAt) {
+    activity.time = new Date(fruit.claimedAt);
+  }
+  return activity;
 }
 
 export async function getUserProfileSummary(username) {
@@ -218,8 +146,8 @@ export async function getUserProfileSummary(username) {
   const [
     completedChecklists,
     voucherRedemptionsResponse,
-    ecoenzymUploads,
-    ecoenzymProjects,
+    ecoenzymProjectsCompleted,
+    ecoenzymProjectsOngoing,
     treeFruits,
     gameRewards,
     rewardsResponse,
@@ -236,11 +164,19 @@ export async function getUserProfileSummary(username) {
       })
       .lean(),
     getUserRedemptions(userId, { limit: 50 }),
-    EcoenzymUploadProgress.find({ userId })
-      .sort({ uploadedDate: -1, createdAt: -1 })
-      .limit(20)
+    EcoenzymProject.find({
+      userId,
+      status: "completed",
+      points: { $gt: 0 },
+    })
+      .sort({ updatedAt: -1, createdAt: -1 })
+      .limit(10)
       .lean(),
-    EcoenzymProject.find({ userId, points: { $gt: 0 } })
+    EcoenzymProject.find({
+      userId,
+      status: "ongoing",
+      prePointsEarned: { $gt: 0 },
+    })
       .sort({ updatedAt: -1, createdAt: -1 })
       .limit(10)
       .lean(),
@@ -274,40 +210,41 @@ export async function getUserProfileSummary(username) {
   const rawActivities = [
     ...completedChecklists.map(mapLeafActivity),
     ...voucherRedemptions.map(mapVoucherActivity),
-    ...ecoenzymUploads.map(mapEcoenzymActivity),
-    ...ecoenzymProjects.map(mapEcoenzymProjectActivity),
+    ...ecoenzymProjectsCompleted.map(mapCompletedEcoenzymProjectActivity),
+    ...ecoenzymProjectsOngoing.map(mapOngoingEcoenzymProjectActivity),
     ...treeFruits.map(mapTreeFruitActivity),
     ...gameRewards.map(mapGameSortingActivity),
   ];
 
-  const streak = computeStreakDays(
-    completedChecklists.map(
-      (item) => item.completedAt ?? item.updatedAt ?? item.createdAt
-    )
-  );
+  const completionTimestamps = completedChecklists
+    .map((item) => item.completedAt)
+    .filter((value) => !!value);
+  const streakDays = computeStreakDays(completionTimestamps);
 
   const latestCompletedAt =
-    completedChecklists[0]?.completedAt ??
-    completedChecklists[0]?.updatedAt ??
-    completedChecklists[0]?.createdAt ??
-    null;
-
-  const milestoneStreak = streak >= 30 ? 30 : streak >= 7 ? 7 : null;
-
-  if (milestoneStreak && latestCompletedAt) {
-    rawActivities.push({
-      id: `streak-${userId.toString()}`,
-      type: "gain",
-      metricLabel: `Kamu menjaga streak kebiasaan selama ${milestoneStreak} hari berturut-turut.`,
-      title: "Habit streak aktif",
-      description: `Teruskan kebiasaanmu! Kamu baru saja menyentuh ${milestoneStreak} hari berturut-turut.`,
-      time: latestCompletedAt,
-      timeLabel: formatDateLabel(latestCompletedAt),
-      periods: resolveActivityPeriods(latestCompletedAt),
-    });
-  }
+    completionTimestamps.length > 0 ? completionTimestamps[0] : null;
 
   if (latestCompletedAt) {
+    const baseTime = new Date(latestCompletedAt);
+
+    if (streakDays >= 7) {
+      rawActivities.push({
+        type: "streak",
+        milestone: 7,
+        streakDays,
+        time: new Date(baseTime.getTime() + 1),
+      });
+    }
+
+    if (streakDays >= 30) {
+      rawActivities.push({
+        type: "streak",
+        milestone: 30,
+        streakDays,
+        time: new Date(baseTime.getTime() + 2),
+      });
+    }
+
     const latestDate = new Date(latestCompletedAt);
     latestDate.setHours(0, 0, 0, 0);
     const today = new Date();
@@ -315,18 +252,15 @@ export async function getUserProfileSummary(username) {
     const diffDays = Math.floor(
       (today.getTime() - latestDate.getTime()) / (24 * 60 * 60 * 1000)
     );
-    if (diffDays >= 2) {
-      const breakTime = new Date(today.getTime());
+
+    if (diffDays === 2) {
+      const breakTime = new Date(latestDate.getTime() + 86400000);
       rawActivities.push({
-        id: `streak-break-${userId.toString()}`,
-        type: "gain",
-        metricLabel: "tidak ada aktivitas kemarin",
-        title: "Streak terhenti",
-        description:
-          "Tidak ada habit yang diselesaikan kemarin. Yuk mulai lagi streak hari ini!",
+        type: "streak",
+        streakDays: 0,
+        status: "broken",
+        missedDays: diffDays,
         time: breakTime,
-        timeLabel: formatDateLabel(breakTime),
-        periods: resolveActivityPeriods(breakTime),
       });
     }
   }
@@ -334,7 +268,15 @@ export async function getUserProfileSummary(username) {
   const activities = rawActivities
     .filter((item) => !!item.time)
     .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-    .map(({ time, ...rest }) => rest);
+    .map((item) => {
+      const { time, ...rest } = item;
+      const dateValue = time ? new Date(time) : null;
+      const isoTime = dateValue ? dateValue.toISOString() : null;
+      return {
+        ...rest,
+        time: isoTime,
+      };
+    });
 
   const rewardMilestones =
     rewardItems?.map((reward) => {
@@ -344,7 +286,7 @@ export async function getUserProfileSummary(username) {
         null;
       const targetDays = reward.targetDays ?? 0;
       const recordedProgress = claimEntry?.progressDays ?? 0;
-      const progressDays = Math.max(recordedProgress, streak);
+      const progressDays = Math.max(recordedProgress, streakDays);
       const pointsAwarded = claimEntry?.pointsAwarded ?? 0;
       const claimed = pointsAwarded > 0;
       const canClaim = !claimed && targetDays > 0 && progressDays >= targetDays;
@@ -397,7 +339,7 @@ export async function getUserProfileSummary(username) {
 
   const history = voucherRedemptions.map((redemption, index) => {
     const redemptionId = redemption.id ?? redemption._id?.toString() ?? null;
-    const redeemedTime = redemption.redeemedAt ?? redemption.createdAt ?? null;
+    const redeemedTime = redemption.redeemedAt ?? null;
     const timeValue = redeemedTime ? new Date(redeemedTime) : null;
     const baseKey =
       redemptionId ??
@@ -414,8 +356,6 @@ export async function getUserProfileSummary(username) {
       redeemedAt: timeValue ? timeValue.toISOString() : null,
       points: redemption.points ?? redemption.pointsDeducted ?? 0,
       status: redemption.status ?? null,
-      time: timeValue ? timeValue.toISOString() : null,
-      timeLabel: timeValue ? formatDateLabel(timeValue) : null,
     };
   });
 
