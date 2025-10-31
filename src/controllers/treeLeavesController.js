@@ -14,6 +14,12 @@ export const handleChecklistComplete = async (userId, checklistId) => {
     yellowLeaf.needRecovery = false;
     yellowLeaf.statusChangedDate = new Date();
     await yellowLeaf.save();
+
+    // update checklist agar menunjuk ke daun yang dikembalikan hijau
+    await DailyTaskChecklist.findByIdAndUpdate(checklistId, {
+      treeLeafId: yellowLeaf._id,
+    });
+
     return yellowLeaf;
   }
 
@@ -26,30 +32,38 @@ export const handleChecklistComplete = async (userId, checklistId) => {
   });
   await newLeaf.save();
 
-    await TreeTracker.findOneAndUpdate(
+  // kaitkan daun baru dengan checklist
+  await DailyTaskChecklist.findByIdAndUpdate(checklistId, {
+    treeLeafId: newLeaf._id,
+  });
+
+  // update tracker
+  await TreeTracker.findOneAndUpdate(
     { userId },
     {
-        $inc: { totalGreenLeaves: 1 },
-        lastActivityDate: new Date(),
+      $inc: { totalGreenLeaves: 1 },
+      lastActivityDate: new Date(),
     },
     { new: true, upsert: true }
-    );
+  );
 
+  // hitung total daun hijau
   const totalLeaves = await TreeLeaf.countDocuments({ userId, status: "green" });
 
-    // kalau jumlah daun kelipatan 5 → buat buah baru
-    if (totalLeaves % 5 === 0) {
+  // kalau jumlah daun kelipatan 5 → buat buah baru
+  if (totalLeaves % 5 === 0) {
     const newFruit = new TreeFruit({
-        userId,
-        treeTrackerId: newLeaf.treeTrackerId, // kalau kamu punya trackerId, isi di sini
-        harvestReadyDate: new Date(),
+      userId,
+      treeTrackerId: newLeaf.treeTrackerId, // opsional
+      harvestReadyDate: new Date(),
     });
     await newFruit.save();
     console.log(`🍎 Buah baru muncul untuk user ${userId} (total daun: ${totalLeaves})`);
-    }
+  }
 
   return newLeaf;
 };
+
 
 // Cek siapa yang nggak nyelesain task harian
 export const updateYellowLeavesForInactiveUsers = async () => {
