@@ -70,7 +70,7 @@ passport.use(
 
 const jwtOptions = {
   jwtFromRequest: ExtractJwt.fromExtractors([
-    (req) => req?.cookies?.token,
+    (req) => req?.cookies?.access_token,
     ExtractJwt.fromAuthHeaderAsBearerToken(),
   ]),
   secretOrKey: JWT_SECRET,
