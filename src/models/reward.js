@@ -11,10 +11,6 @@ const rewardSchema = new Schema(
     targetDays: { type: Number, required: true, min: 1 },
     isActive: { type: Boolean, default: true, index: true },
     image: { type: String, default: null, trim: true },
-    ctaLabel: { type: String, default: null, trim: true },
-    ctaClaimedLabel: { type: String, default: null, trim: true },
-    ctaDescription: { type: String, default: null, trim: true },
-    metadata: { type: Schema.Types.Mixed, default: null },
   },
   {
     timestamps: { createdAt: "createdAt", updatedAt: "updatedAt" },
