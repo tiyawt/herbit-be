@@ -70,3 +70,38 @@ export const updateTreeTracker = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Buat TreeTracker manual (untuk user lama)
+export const createNewTreeTracker = async (req, res) => {
+  try {
+    const userId = req.userId || req.user.id;
+
+    // Cek apakah user sudah punya tracker
+    const existingTracker = await TreeTracker.findOne({ userId });
+    if (existingTracker) {
+      return res.status(400).json({
+        message: "Kamu sudah punya pohon. Tidak bisa membuat yang baru.",
+        tracker: existingTracker,
+      });
+    }
+
+    // Buat tracker baru
+    const newTracker = new TreeTracker({
+      userId,
+      totalGreenLeaves: 0,
+      totalYellowLeaves: 0,
+      totalFruitsHarvested: 0,
+      lastActivityDate: new Date(),
+    });
+
+    await newTracker.save();
+
+    res.status(201).json({
+      message: "Pohon baru berhasil dibuat 🌱",
+      tracker: newTracker,
+    });
+  } catch (error) {
+    console.error("❌ Error createNewTreeTracker:", error);
+    res.status(500).json({ message: "Gagal membuat pohon baru." });
+  }
+};
