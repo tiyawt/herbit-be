@@ -146,17 +146,12 @@ export async function getUserPointsActivityHandler(req, res) {
           return false;
         })
         .map((activity) => ({
-          id: activity.id,
           type: activity.type,
-          metricLabel: activity.metricLabel ?? null,
-          title: activity.title,
-          description: activity.description ?? null,
           points:
             typeof activity.points === "number"
               ? activity.points
               : activity.prePoints ?? 0,
-          timeLabel: activity.timeLabel ?? null,
-          periods: activity.periods ?? ["all"],
+          time: activity.time ?? null,
         })) ?? [];
 
     return ok(res, { activities: pointActivities });
