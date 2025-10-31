@@ -163,3 +163,8 @@ export async function markAllRead(userId, type) {
   await notification.updateMany(q, { $set: { isRead: true } });
   return { ok: true };
 }
+
+export async function clearAllNotifications(userId) {
+  const result = await notification.deleteMany({ user_id: userId });
+  return result;
+}

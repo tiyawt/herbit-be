@@ -5,6 +5,7 @@ import {
   listUserNotifications,
   markRead,
   markAllRead,
+  clearAllNotifications,
 } from "../services/notificationService.js";
 
 const router = express.Router();
@@ -38,6 +39,17 @@ router.patch("/read-all", async (req, res, next) => {
     const { type } = req.body;
     const data = await markAllRead(userId, type);
     res.json(data);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// DELETE /api/notifications/clear-all
+router.delete("/clear-all", async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const result = await clearAllNotifications(userId);
+    res.json({ success: true, deletedCount: result.deletedCount });
   } catch (e) {
     next(e);
   }
