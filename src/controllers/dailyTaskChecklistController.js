@@ -58,6 +58,7 @@ export const getTodayTasks = async (req, res) => {
           dailyTaskId: task._id,
           title: task.title,
           category: task.category,
+          symbol: task.symbol,
           isCompleted: checklist.isCompleted,
           treeLeafId: checklist.treeLeafId,
         };

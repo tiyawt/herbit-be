@@ -15,6 +15,9 @@ const dailyTaskSchema = new mongoose.Schema(
       type: String,
       enum: ["eco-action", "health", "learning", "mindfulness"],
     },
+    symbol: {
+      type: String,
+    },
     taskDate: {
       type: Date,
       required: true,
