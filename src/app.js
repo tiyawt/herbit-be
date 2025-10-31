@@ -11,6 +11,9 @@ import dailyTaskRoutes from "./routes/dailyTaskRoutes.js";
 import dailyTaskChecklistRoutes from "./routes/dailyTaskChecklistRoutes.js";
 import treeFruitsRoutes from "./routes/treeFruitsRoutes.js";
 import treeTackerRoutes from "./routes/treeTrackersRoutes.js";
+import ecoenzimRoutes from "./routes/ecoenzimRoutes.js";
+import cron from "node-cron";
+import { autoCancelExpiredProjects } from "./controllers/ecoenzimController.js";
 
 
 const app = express();
@@ -38,5 +41,14 @@ app.use("/api/daily", dailyTaskRoutes);
 app.use("/api/checklists", dailyTaskChecklistRoutes);
 app.use("/api/fruits", treeFruitsRoutes);
 app.use("/api/tree", treeTackerRoutes)
+app.use("/api/ecoenzim", ecoenzimRoutes);
+
+
+
+cron.schedule('* * * * *', async () => {
+  console.log('⏳ Cek project kadaluarsa...');
+  await autoCancelExpiredProjects();
+});
+
 
 export default app;

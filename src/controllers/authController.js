@@ -13,22 +13,13 @@ const cookieOpts = {
 export async function register(req, res) {
   try {
     const { email, username, phone_number, password } = req.body;
-    const result = await registerUser({ email, username, phone_number, password });
-    
-     // Dapatkan userId dari hasil register
-    const userId = result.user?._id || result._id || result.id;
-
-    // Buat TreeTracker tanpa ganggu flow register
-    if (userId) {
-      try {
-        await createTreeTrackerForUser(userId);
-      } catch (err) {
-        console.warn("Gagal membuat TreeTracker untuk user:", userId, err.message);
-      }
-    }
-    
+    const result = await registerUser({
+      email,
+      username,
+      phone_number,
+      password,
+    });
     return ok(res, { user: result.user ?? result }, "Registered", 201);
-
   } catch (e) {
     if (e.message === "EMAIL_OR_USERNAME_TAKEN") {
       return fail(res, e.message, "Email atau username sudah dipakai", 409);
@@ -56,9 +47,12 @@ export async function login(req, res) {
 
 export async function getMe(req, res) {
   try {
-    const data = await me(req.user.id);
-    return ok(res, data);
+    const userData = await me(req.user.id);
+    return ok(res, userData);
   } catch (e) {
+    if (e.message === "User not found") {
+      return fail(res, "USER_NOT_FOUND", "User tidak ditemukan", 404);
+    }
     return fail(res, "ME_ERROR", e.message, 400);
   }
 }

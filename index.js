@@ -3,23 +3,19 @@ dotenv.config();
 
 import connectToDb from "./src/config/database.js";
 import app from "./src/app.js";
-import cron from "node-cron";
 import { initNotificationSchedulers } from "./src/jobs/notificationScheduler.js";
-import { updateYellowLeavesForInactiveUsers } from "./src/controllers/treeLeavesController.js";
+import { initCronJobs } from "./src/jobs/taskScheduler.js";
 
 const PORT = process.env.PORT || 5000;
 
 try {
   await connectToDb();
   initNotificationSchedulers();
+  initCronJobs
   app.listen(PORT, () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
   
-    // Jalankan setiap jam 00:00
-    cron.schedule("0 0 * * * *", async () => {
-      console.log("⏰ Mengecek daun kuning jam 00:00...");
-      await updateYellowLeavesForInactiveUsers();
-    });
+    
   });
 
 } catch (err) {
