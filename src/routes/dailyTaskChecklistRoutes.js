@@ -1,6 +1,6 @@
 import express from "express";
 import {
-    generateDailyChecklist,
+  getTodayTasks,
   getChecklistByUser,
   markComplete,
   uncheck,
@@ -12,7 +12,7 @@ const router = express.Router();
 // Ambil semua checklist milik user
 router.get("/", authRequired, getChecklistByUser);
 
-router.post("/generate", authRequired, generateDailyChecklist);
+router.get("/today", authRequired, getTodayTasks);
 
 // Tandai checklist selesai
 router.patch("/:id/complete", authRequired, markComplete);
