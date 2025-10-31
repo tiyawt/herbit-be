@@ -3,31 +3,27 @@ import {
   getProjects,
   getProjectById,
   createProject,
-  updateProject,
-  deleteProject,
-  getUploads,
+  getAllUploads,
   getUploadsByProject,
   createUpload,
-  claimPoints,          
+  verifyUpload,
+  claimPoints
 } from "../controllers/ecoenzimController.js";
 
 const router = express.Router();
 
-// PROJECT ROUTES
-
+// Projects
 router.get("/projects", getProjects);
 router.get("/projects/:id", getProjectById);
 router.post("/projects", createProject);
-router.put("/projects/:id", updateProject);
-router.delete("/projects/:id", deleteProject);
 
-// UPLOAD ROUTES
-
-router.get("/uploads", getUploads);
-router.get("/uploads/:projectId", getUploadsByProject);
+// Uploads
+router.get("/uploads", getAllUploads);
+router.get("/uploads/project/:projectId", getUploadsByProject); 
 router.post("/uploads", createUpload);
+router.put("/uploads/:id/verify", verifyUpload);
 
-// CLAIM ROUTE
-router.post("/projects/:id/claim", claimPoints);  
+// Claim
+router.post("/projects/:id/claim", claimPoints);
 
 export default router;

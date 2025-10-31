@@ -11,8 +11,8 @@ import { daysBetween, todayBucketWIB } from "../utils/date.js";
 import { pushGameSortingInvite } from "../services/notificationService.js";
 
 
-const EcoenzymProjects = () =>
-  mongoose.connection.collection("ecoenzymProjects");
+const ecoenzimProjects = () =>
+  mongoose.connection.collection("ecoenzimProjects");
 const VoucherRedemptions = () =>
   mongoose.connection.collection("voucherRedemptions");
 const GameSortings = () => mongoose.connection.collection("gameSortings");
@@ -58,7 +58,7 @@ export function initNotificationSchedulers() {
       );
 
       const today = new Date();
-      const projects = EcoenzymProjects().find(
+      const projects = ecoenzimProjects().find(
         { status: { $in: ["ongoing", "active"] } },
         {
           projection: {

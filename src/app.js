@@ -37,7 +37,7 @@ app.use("/api/ecoenzim", ecoenzimRoutes);
 
 
 
-cron.schedule('* * * * *', async () => {
+cron.schedule('0 * * * *', async () => {
   console.log('⏳ Cek project kadaluarsa...');
   await autoCancelExpiredProjects();
 });
