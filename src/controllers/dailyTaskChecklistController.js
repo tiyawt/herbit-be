@@ -56,7 +56,7 @@ export const getTodayTasks = async (req, res) => {
         return {
           _id: checklist._id,
           dailyTaskId: task._id,
-          text: task.text,
+          title: task.title,
           category: task.category,
           isCompleted: checklist.isCompleted,
           treeLeafId: checklist.treeLeafId,
@@ -127,11 +127,23 @@ export const uncheck = async (req, res) => {
 export const getChecklistByUser = async (req, res) => {
   try {
     const userId = req.userId || req.user.id;
-    const checklist = await DailyTaskChecklist.find({ userId })
-      .populate("dailyTaskId")
-      .populate("treeLeafId");
+const checklist = await DailyTaskChecklist.find({ userId })
+  .populate("dailyTaskId")
+  .populate("treeLeafId");
 
-    res.json({ checklists: checklist });
+  const tasks = checklist.map((item) => ({
+    _id: item._id,
+    dailyTaskId: item.dailyTaskId?._id,
+    title: item.dailyTaskId?.title,         // ✅ ambil dari model
+    description: item.dailyTaskId?.description,
+    category: item.dailyTaskId?.category,
+    isCompleted: item.isCompleted,
+    completedAt: item.completedAt,
+    treeLeafId: item.treeLeafId?._id || null,
+  }));
+
+  res.json({ tasks });
+
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
