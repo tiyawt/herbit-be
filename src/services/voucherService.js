@@ -56,8 +56,9 @@ function determineVoucherStatus(voucher, now = new Date()) {
 
 function mapVoucher(voucher, user) {
   if (!voucher) return null;
-  const pointsRequired = voucher.pointsRequired ?? 0;
-  const currentPoints = user?.totalPoints ?? 0;
+  const pointsRequired = voucher.pointsRequired;
+  const currentPoints =
+    user && typeof user.totalPoints === "number" ? user.totalPoints : 0;
   const progressTarget = Math.max(pointsRequired, 1);
   const progressPercent = Math.min(
     100,

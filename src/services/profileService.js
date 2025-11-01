@@ -44,9 +44,11 @@ function computeStreakDays(completedTimestamps = []) {
 }
 
 function getProjectKey(project) {
-  const value =
-    project?.id ?? project?._id?.toString?.() ?? project?._id ?? null;
-  return value == null ? null : value.toString();
+  if (!project) return null;
+  if (typeof project.id === "string") return project.id;
+  if (project.id != null) return String(project.id);
+  if (project._id != null) return String(project._id);
+  return null;
 }
 
 function mapLeafActivity(checklist) {
@@ -148,7 +150,10 @@ export async function getUserProfileSummary(username) {
   }
 
   const userId = user._id;
-  const userIdString = userId?.toString?.() ?? userId;
+  const userIdString =
+    userId && typeof userId.toString === "function"
+      ? userId.toString()
+      : userId;
   const userIdFilter = [userIdString];
   if (userId && typeof userId !== "string") {
     userIdFilter.push(userId);
@@ -217,9 +222,15 @@ export async function getUserProfileSummary(username) {
     listVouchers({ userId: userId.toString(), status: "active", limit: 5 }),
   ]);
 
-  const rewardItems = rewardsResponse?.items ?? [];
-  const claimItems = milestoneClaimsResponse?.items ?? [];
-  const voucherRedemptions = voucherRedemptionsResponse?.items ?? [];
+  const rewardItems = Array.isArray(rewardsResponse.items)
+    ? rewardsResponse.items
+    : [];
+  const claimItems = Array.isArray(milestoneClaimsResponse.items)
+    ? milestoneClaimsResponse.items
+    : [];
+  const voucherRedemptions = Array.isArray(voucherRedemptionsResponse.items)
+    ? voucherRedemptionsResponse.items
+    : [];
   const { projects: ecoenzymProjects, uploads: ecoenzimUploads } =
     ecoenzimData ?? { projects: [], uploads: [] };
 
@@ -369,86 +380,76 @@ export async function getUserProfileSummary(username) {
       };
     });
 
-  const rewardMilestones =
-    rewardItems?.map((reward) => {
-      const claimEntry =
-        (reward.id ? claimMap.get(reward.id) : undefined) ??
-        (reward.code ? claimMap.get(reward.code) : undefined) ??
-        null;
-      const targetDays = reward.targetDays ?? 0;
-      const recordedProgress = claimEntry?.progressDays ?? 0;
-      const progressDays = Math.max(recordedProgress, streakDays);
-      const pointsAwarded = claimEntry?.pointsAwarded ?? 0;
-      const claimed = pointsAwarded > 0;
-      const canClaim = !claimed && targetDays > 0 && progressDays >= targetDays;
-
-      return {
-        code: reward.code ?? null,
-        name: reward.name,
-        description: reward.description,
-        pointsReward: reward.pointsReward,
-        targetDays,
-        isActive: reward.isActive,
-        image: reward.image,
-        claim: {
-          progressDays,
-          pointsAwarded,
-          claimedAt: claimEntry?.claimedAt ?? null,
-          canClaim,
-        },
-      };
-    }) ?? [];
-
-  const seenVoucherIds = new Set();
-  const available =
-    vouchers?.items?.reduce((acc, item) => {
-      const key = item.id ?? null;
-      if ((key && seenVoucherIds.has(key)) || acc.length >= 5) {
-        return acc;
-      }
-      if (key) {
-        seenVoucherIds.add(key);
-      }
-      const pointsRequired = item.pointsRequired ?? 0;
-      const currentPoints = item.progress?.current ?? 0;
-      const targetPoints = item.progress?.target ?? Math.max(pointsRequired, 1);
-
-      acc.push({
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        image: item.imageUrl ?? null,
-        pointsRequired,
-        stock: item.stock,
-        progress: {
-          current: currentPoints,
-          target: targetPoints,
-        },
-      });
-      return acc;
-    }, []) ?? [];
-
-  const history = voucherRedemptions.map((redemption, index) => {
-    const redemptionId = redemption.id ?? redemption._id?.toString() ?? null;
-    const redeemedTime = redemption.redeemedAt ?? null;
-    const timeValue = redeemedTime ? new Date(redeemedTime) : null;
-    const baseKey =
-      redemptionId ??
-      `${redemption.code ?? redemption.name ?? "voucher"}-${index}`;
-    const imageSource =
-      redemption.image ??
-      redemption.imageUrl ??
-      redemption.voucher?.imageUrl ??
+  const rewardMilestones = rewardItems.map((reward) => {
+    const claimEntry =
+      (reward.id ? claimMap.get(reward.id) : undefined) ??
+      (reward.code ? claimMap.get(reward.code) : undefined) ??
       null;
+    const targetDays = reward.targetDays ?? 0;
+    const recordedProgress = claimEntry?.progressDays ?? 0;
+    const progressDays = Math.max(recordedProgress, streakDays);
+    const pointsAwarded = claimEntry?.pointsAwarded ?? 0;
+    const claimed = pointsAwarded > 0;
+    const canClaim = !claimed && targetDays > 0 && progressDays >= targetDays;
+
     return {
-      id: baseKey,
-      name: redemption.name ?? redemption.code ?? null,
-      image: imageSource,
-      redeemedAt: timeValue ? timeValue.toISOString() : null,
-      points: redemption.points ?? redemption.pointsDeducted ?? 0,
-      status: redemption.status ?? null,
+      code: reward.code,
+      name: reward.name,
+      description: reward.description,
+      pointsReward: reward.pointsReward,
+      targetDays,
+      isActive: reward.isActive,
+      image: reward.image,
+      claim: {
+        progressDays,
+        pointsAwarded,
+        claimedAt: claimEntry?.claimedAt ?? null,
+        canClaim,
+      },
     };
   });
+
+  const seenVoucherIds = new Set();
+  const voucherItems = Array.isArray(vouchers.items) ? vouchers.items : [];
+
+  const available = voucherItems.reduce((acc, item) => {
+    const key = item.id;
+    if ((key && seenVoucherIds.has(key)) || acc.length >= 5) {
+      return acc;
+    }
+    if (key) {
+      seenVoucherIds.add(key);
+    }
+
+    const pointsRequired = item.pointsRequired;
+    const progress = item.progress ?? {
+      current: 0,
+      target: Math.max(pointsRequired, 1),
+    };
+
+    acc.push({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+      image: item.imageUrl,
+      pointsRequired,
+      stock: item.stock,
+      progress: {
+        current: progress.current,
+        target: progress.target,
+      },
+    });
+    return acc;
+  }, []);
+
+  const history = voucherRedemptions.map((redemption) => ({
+    id: redemption.id,
+    name: redemption.name,
+    image: redemption.imageUrl,
+    redeemedAt: redemption.redeemedAt,
+    points: redemption.points,
+    status: redemption.status,
+  }));
 
   return {
     user: {
