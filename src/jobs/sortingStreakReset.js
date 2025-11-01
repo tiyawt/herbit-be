@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import User from "../models/user.js";
-import { todayBucketWIB, addDaysBucket } from "../utils/date.js";
+import { todayBucketWIB } from "../utils/date.js";
 
 cron.schedule(
   "5 0 * * *",
