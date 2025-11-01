@@ -3,6 +3,14 @@ import Voucher from "../models/voucher.js";
 import VoucherRedemption from "../models/voucherRedemption.js";
 import User from "../models/user.js";
 
+function createError(message, status) {
+  const error = new Error(message);
+  if (status) {
+    error.status = status;
+  }
+  return error;
+}
+
 function normalizeStringArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) {
@@ -17,6 +25,33 @@ function normalizeStringArray(value) {
       .filter((entry) => entry);
   }
   return [];
+}
+
+function applyStatusSideEffects(voucher) {
+  if (!voucher || typeof voucher !== "object") return;
+  const status = voucher.status;
+  if (!status) return;
+  if (status === "inactive" || status === "expired") {
+    voucher.isActive = false;
+  } else if (status === "active" || status === "upcoming") {
+    voucher.isActive = true;
+  }
+}
+
+function determineVoucherStatus(voucher, now = new Date()) {
+  if (!voucher?.isActive) {
+    return "inactive";
+  }
+  if (voucher.validFrom && voucher.validFrom > now) {
+    return "upcoming";
+  }
+  if (voucher.validUntil && voucher.validUntil < now) {
+    return "expired";
+  }
+  if (typeof voucher.stock === "number" && voucher.stock <= 0) {
+    return "expired";
+  }
+  return "active";
 }
 
 function mapVoucher(voucher, user) {
@@ -44,17 +79,18 @@ function mapVoucher(voucher, user) {
     stock: voucher.stock,
     redeemedCount: voucher.redeemedCount,
     isActive: voucher.isActive,
+    status: determineVoucherStatus(voucher),
     validFrom: voucher.validFrom,
     validUntil: voucher.validUntil,
     terms: voucher.terms,
     instructions: voucher.instructions,
-    metadata: voucher.metadata,
-    canRedeem: currentPoints >= pointsRequired,
-    progress: {
-      current: currentPoints,
-      target: progressTarget,
-      percent: progressPercent,
-    },
+    progress: user
+      ? {
+          current: currentPoints,
+          target: progressTarget,
+          percent: progressPercent,
+        }
+      : undefined,
     createdAt: voucher.createdAt,
     updatedAt: voucher.updatedAt,
   };
@@ -63,12 +99,12 @@ function mapVoucher(voucher, user) {
 export async function createVoucher(payload) {
   const { slug } = payload || {};
   if (!slug) {
-    throw new Error("VOUCHER_SLUG_REQUIRED");
+    throw createError("Slug voucher wajib diisi", 400);
   }
 
   const slugExists = await Voucher.exists({ slug });
   if (slugExists) {
-    throw new Error("VOUCHER_SLUG_EXISTS");
+    throw createError("Slug voucher sudah digunakan", 409);
   }
 
   const doc = new Voucher({
@@ -80,6 +116,7 @@ export async function createVoucher(payload) {
     stock: payload.stock,
     redeemedCount: payload.redeemedCount,
     isActive: payload.isActive,
+    status: payload.status,
     validFrom: payload.validFrom,
     validUntil: payload.validUntil,
     imageUrl: payload.imageUrl,
@@ -89,8 +126,16 @@ export async function createVoucher(payload) {
     landingUrl: payload.landingUrl,
     terms: normalizeStringArray(payload.terms),
     instructions: normalizeStringArray(payload.instructions),
-    metadata: payload.metadata ?? null,
   });
+
+  if (typeof doc.isActive !== "boolean") {
+    doc.isActive = true;
+  }
+
+  if (!doc.status) {
+    doc.status = determineVoucherStatus(doc);
+  }
+  applyStatusSideEffects(doc);
 
   const created = await doc.save();
   return mapVoucher(created, null);
@@ -99,7 +144,7 @@ export async function createVoucher(payload) {
 export async function updateVoucher(voucherId, updates = {}) {
   const voucher = await Voucher.findById(voucherId);
   if (!voucher) {
-    throw new Error("VOUCHER_NOT_FOUND");
+    throw createError("Voucher tidak ditemukan", 404);
   }
 
   if (updates.slug && updates.slug !== voucher.slug) {
@@ -108,7 +153,7 @@ export async function updateVoucher(voucherId, updates = {}) {
       _id: { $ne: voucherId },
     });
     if (slugExists) {
-      throw new Error("VOUCHER_SLUG_EXISTS");
+      throw createError("Slug voucher sudah digunakan", 409);
     }
     voucher.slug = updates.slug.trim();
   }
@@ -120,7 +165,6 @@ export async function updateVoucher(voucherId, updates = {}) {
     "pointsRequired",
     "stock",
     "redeemedCount",
-    "isActive",
     "validFrom",
     "validUntil",
     "imageUrl",
@@ -128,7 +172,6 @@ export async function updateVoucher(voucherId, updates = {}) {
     "partnerName",
     "discountValue",
     "landingUrl",
-    "metadata",
   ];
 
   fields.forEach((field) => {
@@ -136,6 +179,35 @@ export async function updateVoucher(voucherId, updates = {}) {
       voucher[field] = updates[field];
     }
   });
+
+  if (updates.valid && typeof updates.valid === "object") {
+    if (Object.prototype.hasOwnProperty.call(updates.valid, "from")) {
+      voucher.validFrom = updates.valid.from;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates.valid, "until")) {
+      voucher.validUntil = updates.valid.until;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "status")) {
+    voucher.status = updates.status;
+  }
+
+  if (!voucher.status) {
+    voucher.status = determineVoucherStatus(voucher);
+  }
+  applyStatusSideEffects(voucher);
+
+  if (Object.prototype.hasOwnProperty.call(updates, "isActive")) {
+    voucher.isActive = updates.isActive;
+    // If isActive toggled manually, ensure status remains consistent.
+    if (!voucher.isActive && voucher.status === "active") {
+      voucher.status = "inactive";
+    }
+    if (voucher.isActive && voucher.status === "inactive") {
+      voucher.status = determineVoucherStatus(voucher);
+    }
+  }
 
   if (Object.prototype.hasOwnProperty.call(updates, "terms")) {
     voucher.terms = normalizeStringArray(updates.terms);
@@ -151,7 +223,7 @@ export async function updateVoucher(voucherId, updates = {}) {
 export async function deleteVoucher(voucherId) {
   const removed = await Voucher.findByIdAndDelete(voucherId);
   if (!removed) {
-    throw new Error("VOUCHER_NOT_FOUND");
+    throw createError("Voucher tidak ditemukan", 404);
   }
   return { id: removed._id?.toString() ?? null };
 }
@@ -167,9 +239,33 @@ function mapRedemption(redemption, voucher) {
       : redemption.voucherId?._id?.toString() ??
         redemption.voucherId?.toString() ??
         null;
+  const userDocument =
+    redemption.userId &&
+    typeof redemption.userId === "object" &&
+    !("toHexString" in redemption.userId)
+      ? redemption.userId
+      : null;
+  const userId =
+    redemption.userId &&
+    typeof redemption.userId === "object" &&
+    "toHexString" in redemption.userId
+      ? redemption.userId.toHexString()
+      : redemption.userId?._id?.toString() ??
+        redemption.userId?.toString() ??
+        null;
+  const user =
+    userDocument && typeof userDocument === "object"
+      ? {
+          id: userDocument._id?.toString() ?? userId,
+          username: userDocument.username ?? null,
+          email: userDocument.email ?? null,
+        }
+      : null;
   return {
     id: redemption._id?.toString() ?? null,
     voucherId,
+    userId,
+    user,
     name: source?.name ?? null,
     imageUrl: source?.imageUrl ?? null,
     category: source?.category ?? null,
@@ -195,23 +291,17 @@ export async function listVouchers({
   search = null,
   limit = 20,
   page = 1,
-  includeInactive = false,
+  audience = "public",
 } = {}) {
-  const filter = {};
-
-  if (!includeInactive && status === null) {
-    filter.isActive = true;
-  } else if (status === "active") {
-    filter.isActive = true;
-    const now = new Date();
-    filter.$and = [
-      { $or: [{ validFrom: null }, { validFrom: { $lte: now } }] },
-      { $or: [{ validUntil: null }, { validUntil: { $gte: now } }] },
-      { $or: [{ stock: null }, { stock: { $gt: 0 } }] },
-    ];
-  } else if (status === "inactive") {
-    filter.isActive = false;
+  const now = new Date();
+  let normalizedStatus =
+    typeof status === "string" ? status.trim().toLowerCase() : null;
+  if (audience !== "admin" && !normalizedStatus) {
+    normalizedStatus = "active";
   }
+
+  const filter = {};
+  const andConditions = [];
 
   if (category) {
     filter.category = category;
@@ -219,6 +309,28 @@ export async function listVouchers({
 
   if (search) {
     filter.name = { $regex: search, $options: "i" };
+  }
+
+  if (normalizedStatus === "active") {
+    filter.isActive = true;
+    andConditions.push(
+      { $or: [{ validFrom: null }, { validFrom: { $lte: now } }] },
+      { $or: [{ validUntil: null }, { validUntil: { $gte: now } }] },
+      { $or: [{ stock: null }, { stock: { $gt: 0 } }] }
+    );
+  } else if (normalizedStatus === "upcoming") {
+    filter.isActive = true;
+    andConditions.push({ validFrom: { $gt: now } });
+  } else if (normalizedStatus === "expired") {
+    andConditions.push({
+      $or: [{ isActive: false }, { validUntil: { $lt: now } }],
+    });
+  } else if (normalizedStatus === "inactive") {
+    filter.isActive = false;
+  }
+
+  if (andConditions.length > 0) {
+    filter.$and = andConditions;
   }
 
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
@@ -242,11 +354,16 @@ export async function listVouchers({
   };
 }
 
-export async function getVoucher(voucherId, userId = null) {
-  const voucher = await Voucher.findOne({
-    _id: voucherId,
-    isActive: true,
-  });
+export async function getVoucher(
+  voucherId,
+  userId = null,
+  { includeInactive = true } = {}
+) {
+  const query = { _id: voucherId };
+  if (!includeInactive) {
+    query.isActive = true;
+  }
+  const voucher = await Voucher.findOne(query);
   if (!voucher) return null;
   const user = userId
     ? await User.findById(userId).select({ totalPoints: 1 })
@@ -254,27 +371,68 @@ export async function getVoucher(voucherId, userId = null) {
   return mapVoucher(voucher, user);
 }
 
-export async function getVoucherBySlug(slug, userId = null) {
-  const voucher = await Voucher.findOne({ slug, isActive: true });
+export async function getVoucherBySlug(
+  slug,
+  userId = null,
+  { includeInactive = true } = {}
+) {
+  const query = { slug };
+  if (!includeInactive) {
+    query.isActive = true;
+  }
+  const voucher = await Voucher.findOne(query);
   if (!voucher) return null;
   const user = userId
     ? await User.findById(userId).select({ totalPoints: 1 })
     : null;
   return mapVoucher(voucher, user);
+}
+
+function evaluateVoucherEligibility(voucher, userPoints) {
+  const reasons = [];
+  const now = new Date();
+  if (!voucher.isActive) {
+    reasons.push("Voucher sedang tidak aktif");
+  }
+  if (voucher.validFrom && voucher.validFrom > now) {
+    reasons.push("Voucher belum tersedia saat ini");
+  }
+  if (voucher.validUntil && voucher.validUntil < now) {
+    reasons.push("Voucher sudah kadaluarsa");
+  }
+  let stockLeft = null;
+  if (typeof voucher.stock === "number") {
+    stockLeft = Math.max(voucher.stock, 0);
+    if (voucher.stock <= 0) {
+      reasons.push("Voucher sudah habis");
+    }
+  }
+  const currentPoints = userPoints ?? 0;
+  const pointsRequired = voucher.pointsRequired ?? 0;
+  if (currentPoints < pointsRequired) {
+    reasons.push("Poin tidak mencukupi untuk menukar voucher");
+  }
+  return {
+    eligible: reasons.length === 0,
+    reasons,
+    currentPoints,
+    pointsRequired,
+    stockLeft,
+  };
 }
 
 function ensureVoucherAvailability(voucher) {
-  if (!voucher) throw new Error("VOUCHER_NOT_FOUND");
-  if (!voucher.isActive) throw new Error("VOUCHER_INACTIVE");
+  if (!voucher) throw createError("Voucher tidak ditemukan", 404);
+  if (!voucher.isActive) throw createError("Voucher sedang tidak aktif", 400);
   const now = new Date();
   if (voucher.validFrom && voucher.validFrom > now) {
-    throw new Error("VOUCHER_NOT_YET_AVAILABLE");
+    throw createError("Voucher belum tersedia saat ini", 400);
   }
   if (voucher.validUntil && voucher.validUntil < now) {
-    throw new Error("VOUCHER_EXPIRED");
+    throw createError("Voucher sudah kadaluarsa", 400);
   }
   if (typeof voucher.stock === "number" && voucher.stock <= 0) {
-    throw new Error("VOUCHER_OUT_OF_STOCK");
+    throw createError("Voucher sudah habis", 400);
   }
 }
 
@@ -288,26 +446,35 @@ function generateRedemptionCode(voucher) {
   return `${prefix}-${suffix}`;
 }
 
-export async function redeemVoucher({ voucherId, userId }) {
+export async function previewVoucher({ voucherId, userId }) {
+  const voucher = await Voucher.findById(voucherId).lean();
+  if (!voucher) {
+    throw createError("Voucher tidak ditemukan", 404);
+  }
+  const user = await User.findById(userId).select({ totalPoints: 1 }).lean();
+  if (!user) {
+    throw createError("Pengguna tidak ditemukan", 404);
+  }
+  return evaluateVoucherEligibility(voucher, user.totalPoints);
+}
+
+export async function redeemVoucher({ voucherId, userId, note = null }) {
   const voucher = await Voucher.findById(voucherId).exec();
   ensureVoucherAvailability(voucher);
 
   const user = await User.findById(userId).exec();
-  if (!user) throw new Error("USER_NOT_FOUND");
+  if (!user) throw createError("Pengguna tidak ditemukan", 404);
 
-  if ((user.totalPoints ?? 0) < voucher.pointsRequired) {
-    throw new Error("INSUFFICIENT_POINTS");
+  if (user.totalPoints < voucher.pointsRequired) {
+    throw createError("Poin tidak mencukupi untuk menukar voucher", 409);
   }
 
-  if (typeof voucher.stock === "number") {
-    voucher.stock -= 1;
+  if (voucher.stock !== null && voucher.stock !== undefined) {
+    voucher.stock = Math.max(voucher.stock - 1, 0);
   }
   voucher.redeemedCount += 1;
 
-  user.totalPoints = Math.max(
-    (user.totalPoints ?? 0) - voucher.pointsRequired,
-    0
-  );
+  user.totalPoints = Math.max(user.totalPoints - voucher.pointsRequired, 0);
 
   await Promise.all([voucher.save(), user.save()]);
 
@@ -316,29 +483,43 @@ export async function redeemVoucher({ voucherId, userId }) {
     userId: user._id,
     pointsDeducted: voucher.pointsRequired,
     code: generateRedemptionCode(voucher),
-    status: "completed",
+    status: "unused",
     redeemedAt: new Date(),
     expiresAt: voucher.validUntil ?? null,
+    notes: typeof note === "string" ? note.trim() || null : null,
   });
+
+  await redemption.populate("userId", "_id username email");
 
   return mapRedemption(redemption, voucher);
 }
 
 export async function getUserRedemptions(
   userId,
-  { limit = 20, page = 1 } = {}
+  { status = null, limit = 20, page = 1 } = {}
 ) {
   const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
   const safePage = Math.max(parseInt(page, 10) || 1, 1);
   const skip = (safePage - 1) * safeLimit;
 
+  const match = { userId };
+  const normalizedStatus =
+    typeof status === "string" ? status.trim().toLowerCase() : null;
+  if (normalizedStatus) {
+    const allowedStatuses = ["unused", "used", "cancelled"];
+    if (!allowedStatuses.includes(normalizedStatus)) {
+      throw createError("Status riwayat tidak valid", 400);
+    }
+    match.status = normalizedStatus;
+  }
+
   const [items, total] = await Promise.all([
-    VoucherRedemption.find({ userId })
+    VoucherRedemption.find(match)
       .sort({ redeemedAt: -1 })
       .skip(skip)
       .limit(safeLimit)
       .populate("voucherId"),
-    VoucherRedemption.countDocuments({ userId }),
+    VoucherRedemption.countDocuments(match),
   ]);
 
   return {
@@ -352,4 +533,97 @@ export async function getUserRedemptions(
       mapRedemption(redemption, redemption.voucherId)
     ),
   };
+}
+
+export async function getRedemptionByIdForUser(redemptionId, userId) {
+  const redemption = await VoucherRedemption.findOne({
+    _id: redemptionId,
+    userId,
+  })
+    .populate("voucherId")
+    .lean();
+  if (!redemption) {
+    throw createError("Riwayat penukaran tidak ditemukan", 404);
+  }
+  return mapRedemption(redemption, redemption.voucherId);
+}
+
+export async function getRedemptionById(redemptionId) {
+  const redemption = await VoucherRedemption.findById(redemptionId)
+    .populate("voucherId")
+    .populate("userId", "_id username email")
+    .lean();
+  if (!redemption) {
+    throw createError("Riwayat penukaran tidak ditemukan", 404);
+  }
+  return mapRedemption(redemption, redemption.voucherId);
+}
+
+export async function listRedemptions({
+  userId = null,
+  voucherId = null,
+  status = null,
+  limit = 20,
+  page = 1,
+} = {}) {
+  const match = {};
+  if (userId) {
+    match.userId = userId;
+  }
+  if (voucherId) {
+    match.voucherId = voucherId;
+  }
+  const normalizedStatus =
+    typeof status === "string" ? status.trim().toLowerCase() : null;
+  if (normalizedStatus) {
+    const allowedStatuses = ["unused", "used", "cancelled"];
+    if (!allowedStatuses.includes(normalizedStatus)) {
+      throw createError("Status riwayat tidak valid", 400);
+    }
+    match.status = normalizedStatus;
+  }
+
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const skip = (safePage - 1) * safeLimit;
+
+  const [items, total] = await Promise.all([
+    VoucherRedemption.find(match)
+      .sort({ redeemedAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .populate("voucherId")
+      .populate("userId", "_id username email"),
+    VoucherRedemption.countDocuments(match),
+  ]);
+
+  return {
+    pagination: {
+      total,
+      page: safePage,
+      limit: safeLimit,
+      pages: Math.ceil(total / safeLimit) || 1,
+    },
+    items: items.map((redemption) =>
+      mapRedemption(redemption, redemption.voucherId)
+    ),
+  };
+}
+
+export async function getVoucherRedemptions(
+  voucherId,
+  { status = null, limit = 20, page = 1 } = {}
+) {
+  return listRedemptions({ voucherId, status, limit, page });
+}
+
+export async function setVoucherActiveStatus(voucherId, isActive) {
+  const voucher = await Voucher.findById(voucherId);
+  if (!voucher) {
+    throw createError("Voucher tidak ditemukan", 404);
+  }
+  voucher.isActive = Boolean(isActive);
+  voucher.updatedAt = new Date();
+  await voucher.save();
+  return mapVoucher(voucher, null);
 }

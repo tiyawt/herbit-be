@@ -20,8 +20,8 @@ const voucherRedemptionSchema = new Schema(
     code: { type: String, required: true, unique: true, trim: true },
     status: {
       type: String,
-      enum: ["completed", "pending", "cancelled"],
-      default: "completed",
+      enum: ["unused", "used", "cancelled"],
+      default: "unused",
     },
     redeemedAt: { type: Date, default: Date.now },
     expiresAt: { type: Date, default: null },

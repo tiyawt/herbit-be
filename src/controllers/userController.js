@@ -226,7 +226,7 @@ export async function getHomeSummaryHandler(req, res) {
 export async function updateUserMilestoneProgressHandler(req, res) {
   try {
     const { username, rewardCode } = req.params;
-    const { progressDays = null } = req.body ?? {};
+    const { progressDays } = req.body;
 
     if (!username) {
       return fail(res, "USERNAME_REQUIRED", "Username wajib diisi", 400);
@@ -234,7 +234,11 @@ export async function updateUserMilestoneProgressHandler(req, res) {
     if (!rewardCode) {
       return fail(res, "REWARD_CODE_REQUIRED", "Kode reward wajib diisi", 400);
     }
-    if (progressDays === null || Number.isNaN(Number(progressDays))) {
+    if (
+      progressDays === undefined ||
+      progressDays === null ||
+      Number.isNaN(Number(progressDays))
+    ) {
       return fail(
         res,
         "PROGRESS_REQUIRED",

@@ -1,9 +1,6 @@
 import {
   claimRewardMilestone,
   listRewards,
-  createReward,
-  updateReward,
-  deleteReward,
   getReward,
 } from "../services/rewardService.js";
 import { ok, fail } from "../utils/response.js";
@@ -14,7 +11,6 @@ const errorMessages = {
   USER_NOT_FOUND: "Pengguna tidak ditemukan",
   INVALID_PROGRESS: "Progress tidak valid",
   REWARD_CODE_REQUIRED: "Kode reward wajib diisi",
-  REWARD_CODE_EXISTS: "Kode reward sudah digunakan",
   REWARD_PROGRESS_INSUFFICIENT: "Progress belum mencapai target",
   REWARD_ALREADY_CLAIMED: "Reward sudah diklaim",
 };
@@ -42,52 +38,6 @@ export async function listRewardsHandler(req, res) {
     return ok(res, rewards);
   } catch (error) {
     return handleRewardError(res, error, "REWARD_LIST_ERROR");
-  }
-}
-
-export async function createRewardHandler(req, res) {
-  try {
-    const reward = await createReward(req.body ?? {});
-    return ok(res, reward, "Reward berhasil dibuat", 201);
-  } catch (error) {
-    const status =
-      error.status ??
-      (error.message === "REWARD_CODE_EXISTS"
-        ? 409
-        : error.message === "REWARD_CODE_REQUIRED"
-          ? 400
-          : 400);
-    return handleRewardError(res, error, "REWARD_CREATE_ERROR", status);
-  }
-}
-
-export async function updateRewardHandler(req, res) {
-  try {
-    const { rewardId } = req.params;
-    const reward = await updateReward(rewardId, req.body ?? {});
-    return ok(res, reward, "Reward berhasil diperbarui");
-  } catch (error) {
-    const status =
-      error.status ??
-      (error.message === "REWARD_CODE_EXISTS"
-        ? 409
-        : error.message === "REWARD_CODE_REQUIRED"
-          ? 400
-          : error.message === "REWARD_NOT_FOUND"
-            ? 404
-            : 400);
-    return handleRewardError(res, error, "REWARD_UPDATE_ERROR", status);
-  }
-}
-
-export async function deleteRewardHandler(req, res) {
-  try {
-    const { rewardId } = req.params;
-    const result = await deleteReward(rewardId);
-    return ok(res, result, "Reward berhasil dihapus");
-  } catch (error) {
-    const status = error.status ?? (error.message === "REWARD_NOT_FOUND" ? 404 : 400);
-    return handleRewardError(res, error, "REWARD_DELETE_ERROR", status);
   }
 }
 

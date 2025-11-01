@@ -32,20 +32,36 @@ function mapMilestoneClaim(claim, reward) {
   const rewardDoc = reward ?? claim.rewardId;
   const hasRewardDetails =
     rewardDoc && typeof rewardDoc === "object" && ("code" in rewardDoc || "name" in rewardDoc);
+
+  const userDocument =
+    claim.userId &&
+    typeof claim.userId === "object" &&
+    !("toHexString" in claim.userId)
+      ? claim.userId
+      : null;
+
+  let userId = null;
+  if (userDocument && typeof userDocument === "object") {
+    userId = userDocument._id?.toString() ?? null;
+  } else if (claim.userId) {
+    userId = claim.userId?.toString?.() ?? String(claim.userId);
+  }
+
   return {
     id: claim._id?.toString() ?? null,
-    userId:
-      claim.userId &&
-      typeof claim.userId === "object" &&
-      "toString" in claim.userId
-        ? claim.userId.toString()
-        : claim.userId?.toString() ?? null,
+    userId,
+    user:
+      userDocument && typeof userDocument === "object"
+        ? {
+            id: userDocument._id?.toString() ?? userId,
+            username: userDocument.username ?? null,
+            email: userDocument.email ?? null,
+          }
+        : null,
     rewardId:
-      claim.rewardId &&
-      typeof claim.rewardId === "object" &&
-      "toString" in claim.rewardId
-        ? claim.rewardId.toString()
-        : claim.rewardId?._id?.toString() ?? null,
+      rewardDoc && typeof rewardDoc === "object"
+        ? rewardDoc._id?.toString() ?? null
+        : claim.rewardId?.toString?.() ?? String(claim.rewardId ?? ""),
     code: claim.code,
     progressDays: claim.progressDays ?? 0,
     pointsAwarded: claim.pointsAwarded ?? 0,
@@ -395,7 +411,7 @@ export async function updateMilestoneProgress({
       $set: {
         code: reward.code,
         progressDays: safeProgress,
-        status: safeProgress >= reward.targetDays ? "completed" : "pending",
+        status: safeProgress >= reward.targetDays ? "completed" : "in-progress",
       },
       $unset: { pointsAwarded: "" },
     },
@@ -403,4 +419,65 @@ export async function updateMilestoneProgress({
   ).lean();
 
   return mapMilestoneClaim(claim, reward);
+}
+
+export async function listMilestoneClaims({
+  userId = null,
+  rewardId = null,
+  status = null,
+  limit = 20,
+  page = 1,
+} = {}) {
+  const match = {};
+  if (userId) {
+    match.userId = userId;
+  }
+  if (rewardId) {
+    match.rewardId = rewardId;
+  }
+  if (status) {
+    const normalizedStatus = String(status).trim().toLowerCase();
+    const allowed = ["in-progress", "completed"];
+    if (!allowed.includes(normalizedStatus)) {
+      const error = new Error("INVALID_STATUS");
+      error.status = 400;
+      throw error;
+    }
+    match.status = normalizedStatus;
+  }
+
+  const { safeLimit, safePage, skip } = getPagination(limit, page);
+
+  const [items, total] = await Promise.all([
+    MilestoneClaim.find(match)
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .populate("rewardId")
+      .populate("userId", "_id username email"),
+    MilestoneClaim.countDocuments(match),
+  ]);
+
+  return {
+    pagination: {
+      total,
+      page: safePage,
+      limit: safeLimit,
+      pages: Math.ceil(total / safeLimit) || 1,
+    },
+    items: items.map((claim) => mapMilestoneClaim(claim, claim.rewardId)),
+  };
+}
+
+export async function getMilestoneClaimById(claimId) {
+  const claim = await MilestoneClaim.findById(claimId)
+    .populate("rewardId")
+    .populate("userId", "_id username email")
+    .lean();
+  if (!claim) {
+    const error = new Error("MILESTONE_CLAIM_NOT_FOUND");
+    error.status = 404;
+    throw error;
+  }
+  return mapMilestoneClaim(claim, claim.rewardId);
 }
