@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
-import cookieParser from "cookie-parser";    
+import cookieParser from "cookie-parser";
 import routes from "./routes/routes.js";
 import passport from "./config/passport.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
@@ -16,18 +16,20 @@ import ecoenzimRoutes from "./routes/ecoenzimRoutes.js";
 import cron from "node-cron";
 import weeklyProgressRoutes from "./routes/weeklyProgressRoutes.js";  
 import { autoCancelExpiredProjects } from "./controllers/ecoenzimController.js";
-
+import userManagementRoutes from "./routes/userManagementRoutes.js";
 
 const app = express();
 
-app.use(cors({
-  origin: "http://localhost:3000", // FE 
-  credentials: true,               // untuk kirim/terima cookie
-}));
+app.use(
+  cors({
+    origin: "http://localhost:3000", // FE
+    credentials: true, // untuk kirim/terima cookie
+  })
+);
 
 // Global middleware
 app.use(express.json());
-app.use(cookieParser());  
+app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(passport.initialize());
 
@@ -46,13 +48,11 @@ app.use("/api/tree", treeTrackerRoutes);
 app.use("/api/leaves", treeLeavesRoutes);
 app.use("/api/progress", weeklyProgressRoutes)
 app.use("/api/ecoenzim", ecoenzimRoutes);
+app.use("/api/users", userManagementRoutes);
 
-
-
-cron.schedule('* * * * *', async () => {
-  console.log('⏳ Cek project kadaluarsa...');
+cron.schedule("* * * * *", async () => {
+  console.log("⏳ Cek project kadaluarsa...");
   await autoCancelExpiredProjects();
 });
-
 
 export default app;
