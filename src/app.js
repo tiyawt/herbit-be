@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import path from "path";
 import routes from "./routes/routes.js";
 import passport from "./config/passport.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
@@ -26,7 +27,14 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(passport.initialize());
-
+app.use(
+  "/uploads",
+  express.static(path.resolve("uploads"), {
+    setHeaders(res) {
+      res.set("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 app.get("/", (req, res) => {
   res.json({ message: "Server up and running 🚀" });
 });

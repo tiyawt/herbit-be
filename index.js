@@ -4,11 +4,13 @@ dotenv.config();
 import connectToDb from "./src/config/database.js";
 import app from "./src/app.js";
 import { initNotificationSchedulers } from "./src/jobs/notificationScheduler.js";
+import { initProfilePhotoBucket } from "./src/utils/gridfs.js";
 
 const PORT = process.env.PORT || 5000;
 
 try {
   await connectToDb();
+  initProfilePhotoBucket();
   initNotificationSchedulers();
   app.listen(PORT, () => {
     console.log(`✅ Server running on http://localhost:${PORT}`);
