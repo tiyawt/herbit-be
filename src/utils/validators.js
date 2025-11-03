@@ -1,4 +1,5 @@
 import validator from "validator";
+
 export function isEmail(value = "") {
   return validator.isEmail(String(value || ""));
 }
@@ -21,15 +22,22 @@ export function requireBody(fields = []) {
 
 export function validateRegister() {
   return (req, res, next) => {
-    const { email, password, confirm_password } = req.body;
+    const { email, password, confirm_password, username } = req.body;
 
-    if (!isEmail(email)) {
+    // ✅ Normalize email & username ke lowercase
+    if (email) {
+      req.body.email = email.toLowerCase().trim();
+    }
+    if (username) {
+      req.body.username = username.toLowerCase().trim();
+    }
+
+    if (!isEmail(req.body.email)) {
       return res.status(422).json({
         success: false,
         error: { code: "VALIDATION_ERROR", details: "Invalid email format" },
       });
     }
-
     if (password.length < 8) {
       return res.status(422).json({
         success: false,
@@ -39,14 +47,12 @@ export function validateRegister() {
         },
       });
     }
-
     if (password !== confirm_password) {
       return res.status(422).json({
         success: false,
         error: { code: "PASSWORD_NOT_MATCH", details: "Password tidak sama" },
       });
     }
-
     delete req.body.confirm_password;
     next();
   };
