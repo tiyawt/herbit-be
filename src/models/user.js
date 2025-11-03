@@ -14,6 +14,12 @@ const userSchema = new Schema(
     username: { type: String, required: true, unique: true, trim: true },
     phoneNumber: { type: String, default: null, trim: true },
     photoUrl: { type: String, default: null },
+    photoFileId: { type: Schema.Types.ObjectId, default: null },
+    role: {
+      type: String,
+      enum: ["user", "admin"],
+      default: "user",
+    },
     prePoints: { type: Number, default: 0 },
     totalPoints: { type: Number, default: 0 },
     sortingStreak: { type: Number, default: 0 }, // streak berjalan
