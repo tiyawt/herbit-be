@@ -13,6 +13,7 @@ import milestoneClaimAdminRoutes from "./milestoneClaimAdminRoutes.js";
 import pointsHistoryAdminRoutes from "./pointsHistoryAdminRoutes.js";
 import redemptionRoutes from "./redemptionRoutes.js";
 import redemptionAdminRoutes from "./redemptionAdminRoutes.js";
+import profileRoutes from "./profileRoutes.js";
 
 const router = Router();
 
@@ -33,5 +34,6 @@ router.use("/daily-tasks", dailyTaskRoutes);
 router.use("/games", gameRoutes);
 router.use("/notifications", notificationRoutes);
 router.use("/users", userRoutes);
+router.use("/profile", profileRoutes);
 
 export default router;
