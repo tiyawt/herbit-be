@@ -24,8 +24,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: "http://localhost:3000", // FE
-    credentials: true, // untuk kirim/terima cookie
+    origin: [
+      "http://localhost:3000",
+      "https://herbit-fe-test-pi.vercel.app"
+    ],
+    credentials: true,
   })
 );
 
