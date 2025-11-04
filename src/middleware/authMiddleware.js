@@ -2,38 +2,22 @@
 import jwt from "jsonwebtoken";
 
 export function authRequired(req, res, next) {
-  const header = req.headers.authorization || "";
-  const tokenHeader = header.startsWith("Bearer ")
-    ? header.slice(7).trim()
+  const bearer = req.headers.authorization?.startsWith("Bearer ")
+    ? req.headers.authorization.slice(7)
     : null;
-
-  const tokenCookie = req.cookies?.access_token || null;
-
-  const token = tokenHeader || tokenCookie;
+  const token = bearer || req.cookies?.token; // match COOKIE_NAME
 
   if (!token) {
-    return res.status(401).json({
-      success: false,
-      error: {
-        code: "UNAUTHORIZED",
-        details: "Missing token (Bearer or cookie)",
-      },
-    });
+    return res.status(401).json({ message: "Missing token (Bearer or cookie)" });
   }
-
   try {
-    // Verifikasi token
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: payload.id, role: payload.role || "user" };
-
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
     next();
-  } catch (e) {
-    return res.status(401).json({
-      success: false,
-      error: { code: "INVALID_TOKEN", details: e.message },
-    });
+  } catch {
+    return res.status(401).json({ message: "Invalid token" });
   }
 }
+
 
 export function adminRequired(req, res, next) {
   const header = req.headers.authorization || "";
