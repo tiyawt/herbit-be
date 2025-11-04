@@ -36,7 +36,11 @@ export async function login(req, res) {
     // Simpan token ke cookie (httpOnly)
     res.cookie("access_token", result.token, cookieOpts);
 
-    return ok(res, { user: result.user }, "Logged in");
+    // ✅ KIRIM TOKEN DI RESPONSE BODY
+    return ok(res, { 
+      user: result.user,
+      token: result.token  
+    }, "Logged in");
   } catch (e) {
     if (e.message === "INVALID_CREDENTIALS") {
       return fail(res, e.message, "Email atau password salah", 401);
